@@ -1,0 +1,13 @@
+{
+  "name": "beatlab-v15-1-2-diagnostic-ready",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "stripe": "22.6.2"
+  },
+  "scripts": {
+    "test:cloud": "node scripts/e2e-cloud-smoke.mjs",
+    "check": "node --check scripts/e2e-cloud-smoke.mjs"
+  }
+}
