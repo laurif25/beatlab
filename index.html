@@ -205,6 +205,15 @@ input,select,textarea{width:100%;background:#0b0d0f;border:1px solid var(--line)
 @media(max-width:900px){.bl-beat-hero,.bl-beat-two{grid-template-columns:1fr}.bl-beat-cover{max-width:520px}.bl-license-cards{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.bl-beat-title{font-size:56px}.bl-beat-specbar{grid-template-columns:1fr 1fr}.bl-beat-specbar>div:nth-child(2){border-right:0}.bl-beat-specbar>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.bl-license-cards{grid-template-columns:1fr}.bl-passport{grid-template-columns:1fr}.bl-beat-cover{max-width:none}}
 
+
+/* v15.1.7 bottom-controls isolation */
+.player{z-index:10000!important;pointer-events:auto!important}
+.player *{pointer-events:auto}
+.drawer{z-index:11000!important}
+.drawer.open,.drawer.open *{pointer-events:auto!important}
+.modal.open{z-index:12000!important}
+#checkoutBtn{z-index:11002!important;pointer-events:auto!important}
+#blInputDiag{position:fixed;left:12px;bottom:100px;z-index:20000;max-width:min(620px,calc(100vw - 24px));padding:8px 10px;border:1px solid rgba(214,255,63,.55);background:rgba(5,7,8,.96);color:#d6ff3f;font:10px/1.35 monospace;letter-spacing:.02em;display:none;pointer-events:none}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -2043,6 +2052,25 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
   addEventListener('unhandledrejection',e=>{
     console.error('BEATLAB unhandled rejection',e.reason);
   });
+})();
+</script>
+
+<div id="blInputDiag"></div>
+<script id="bl-v1517-bottom-diagnostic">
+(()=>{
+ const d=document.getElementById('blInputDiag');
+ const show=(msg)=>{
+   if(!d)return;
+   d.textContent=msg; d.style.display='block';
+   clearTimeout(show.t); show.t=setTimeout(()=>d.style.display='none',3500);
+ };
+ document.addEventListener('pointerdown',e=>{
+   if(e.clientY < innerHeight-150 && !e.target.closest?.('#cartDrawer')) return;
+   const top=document.elementFromPoint(e.clientX,e.clientY);
+   show('INPUT ✓ target='+((e.target.id&&'#'+e.target.id)||e.target.className||e.target.tagName)+' | top='+((top?.id&&'#'+top.id)||top?.className||top?.tagName));
+ },true);
+ window.addEventListener('error',e=>show('JS ERROR: '+e.message));
+ window.addEventListener('unhandledrejection',e=>show('PROMISE ERROR: '+String(e.reason?.message||e.reason)));
 })();
 </script>
 </body>
