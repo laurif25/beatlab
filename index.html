@@ -2055,22 +2055,31 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
 })();
 </script>
 
-<div id="blInputDiag"></div>
-<script id="bl-v1517-bottom-diagnostic">
+
+
+<style id="bl-v1518-diag-style">
+#blV1518Badge{position:fixed;top:72px;right:14px;z-index:2147483647;background:#d6ff3f;color:#050708;padding:7px 9px;border-radius:6px;font:700 11px/1 monospace;pointer-events:none}
+#blV1518Event{position:fixed;top:106px;right:14px;z-index:2147483647;max-width:min(680px,calc(100vw - 28px));background:#050708;color:#d6ff3f;border:1px solid #d6ff3f;padding:8px 10px;border-radius:6px;font:11px/1.35 monospace;pointer-events:none}
+</style>
+<div id="blV1518Badge">v15.1.8 ACTIVE</div>
+<div id="blV1518Event">Waiting for input…</div>
+<script id="bl-v1518-global-input-diagnostic">
 (()=>{
- const d=document.getElementById('blInputDiag');
- const show=(msg)=>{
-   if(!d)return;
-   d.textContent=msg; d.style.display='block';
-   clearTimeout(show.t); show.t=setTimeout(()=>d.style.display='none',3500);
+ const out=document.getElementById('blV1518Event');
+ const name=el=>{
+   if(!el)return 'null';
+   const id=el.id?'#'+el.id:'';
+   const cls=(typeof el.className==='string'&&el.className.trim())?'.'+el.className.trim().replace(/\s+/g,'.'):'';
+   return el.tagName+id+cls;
  };
- document.addEventListener('pointerdown',e=>{
-   if(e.clientY < innerHeight-150 && !e.target.closest?.('#cartDrawer')) return;
+ const report=(kind,e)=>{
    const top=document.elementFromPoint(e.clientX,e.clientY);
-   show('INPUT ✓ target='+((e.target.id&&'#'+e.target.id)||e.target.className||e.target.tagName)+' | top='+((top?.id&&'#'+top.id)||top?.className||top?.tagName));
- },true);
- window.addEventListener('error',e=>show('JS ERROR: '+e.message));
- window.addEventListener('unhandledrejection',e=>show('PROMISE ERROR: '+String(e.reason?.message||e.reason)));
+   out.textContent=kind+' x='+Math.round(e.clientX)+' y='+Math.round(e.clientY)+' | target='+name(e.target)+' | top='+name(top);
+ };
+ window.addEventListener('pointerdown',e=>report('POINTER',e),true);
+ window.addEventListener('click',e=>report('CLICK',e),true);
+ window.addEventListener('error',e=>{out.textContent='JS ERROR: '+e.message},true);
+ window.addEventListener('unhandledrejection',e=>{out.textContent='PROMISE ERROR: '+String(e.reason?.message||e.reason)},true);
 })();
 </script>
 </body>
