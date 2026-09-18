@@ -144,12 +144,12 @@ input,select,textarea{width:100%;background:#0b0d0f;border:1px solid var(--line)
  linear-gradient(#fff 12%,#111 12% 24%,#fff 24% 36%,#111 36% 48%,#fff 48% 62%,#111 62% 75%,#fff 75%);border:8px solid #fff}
 .ph-role{font:9px var(--font-m);letter-spacing:.16em}
 .footer{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:30px;border-top:1px solid var(--line);padding:40px 0 60px;margin-top:70px}.f-brand{font-family:var(--font-d);font-size:38px}.f-brand em{font-style:normal;color:var(--acid)}.f-tag,.footer h5{font:8px var(--font-m);letter-spacing:.15em;color:var(--ink-dim)}.footer a{display:block;color:var(--ink-2);font-size:12px;margin:8px 0}
-.player{pointer-events:auto;position:fixed;left:14px;right:14px;bottom:12px;z-index:90;height:76px;border:1px solid var(--line2);border-radius:18px;background:rgba(11,13,15,.92);backdrop-filter:blur(22px);display:grid;grid-template-columns:230px 1fr 250px;gap:14px;align-items:center;padding:10px 14px;box-shadow:0 18px 80px rgba(0,0,0,.55)}
+.player{pointer-events:auto;position:fixed;left:14px;right:14px;bottom:12px;z-index:130;height:76px;border:1px solid var(--line2);border-radius:18px;background:rgba(11,13,15,.92);backdrop-filter:blur(22px);display:grid;grid-template-columns:230px 1fr 250px;gap:14px;align-items:center;padding:10px 14px;box-shadow:0 18px 80px rgba(0,0,0,.55)}
 .player-track{display:flex;align-items:center;gap:10px;min-width:0}.player-art{width:52px;height:52px;border-radius:10px;border:0;padding:0;overflow:hidden;background:#111}.player-art img{width:100%;height:100%;object-fit:cover}.player-meta{min-width:0}.player-meta b,.player-meta span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.player-meta span{font-size:10px;color:var(--ink-dim)}
 .player-center{display:flex;align-items:center;gap:10px}.player-controls{display:flex;gap:6px}.p-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#111;color:var(--ink);display:grid;place-items:center}.p-btn.main{width:42px;height:42px;background:var(--acid);color:#080908;border-color:var(--acid)}.p-btn.on{color:var(--acid)}
 .player-seek{position:relative;height:42px;flex:1;display:flex;align-items:center;cursor:pointer}.player-seek canvas{width:100%;height:34px}.player-head{position:absolute;top:7px;bottom:7px;width:1px;background:#fff;pointer-events:none}.player-time{font:8px var(--font-m);color:var(--ink-dim);white-space:nowrap}
 .player-right{display:flex;align-items:center;justify-content:flex-end;gap:10px}.player-right input{width:90px;padding:0;accent-color:var(--acid)}
-.overlay,.drawer,.user-menu,.modal,.mobile-player{position:fixed;z-index:120;pointer-events:none}
+.overlay,.drawer,.user-menu,.modal,.mobile-player{position:fixed;z-index:140;pointer-events:none}
 .overlay{top:72px;right:18px;width:min(520px,calc(100vw - 36px));max-height:70vh;overflow:auto;border:1px solid var(--line2);border-radius:18px;background:#0c0f11;box-shadow:0 20px 80px rgba(0,0,0,.6);padding:14px;opacity:0;visibility:hidden;transform:translateY(-8px);transition:.2s}
 .overlay.open,.user-menu.open{opacity:1;visibility:visible;transform:none;pointer-events:auto}
 .search-box{display:flex;gap:8px}.search-box input{font-size:15px}
@@ -1973,5 +1973,77 @@ const _bl13GraduateLocal=window.bl13Graduate;
 window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(projectId);if(!p)return;if(p.cloudId&&S.sb&&S.user){if((p.readiness||0)<70)return toast('Project needs at least <b>70% release readiness</b>');try{const {data,error}=await S.sb.rpc('graduate_project_to_release',{p_room:p.cloudId,p_title:p.title.replace(/ — (New )?Project$/,'')});if(error)throw error;p.status='GRADUATED';p.readiness=100;BL13.releases.unshift({id:data,cloudId:data,projectId:p.id,title:p.title.replace(/ — (New )?Project$/,''),status:'DRAFT',createdAt:bl13Now(),sourceBeat:p.beatId});bl13Save();toast('<b>Cloud release draft created</b> · provenance preserved');route();return}catch(e){toast('<b>Graduate failed</b> · '+esc(e.message));return}}return _bl13GraduateLocal(projectId)};
 </script>
 
+
+<script id="bl-v1516-input-recovery">
+(()=>{
+  const q=s=>document.querySelector(s);
+  const clearStaleLayers=(keep)=>{
+    document.querySelectorAll('.modal.open,.overlay.open,.user-menu.open,.mobile-player.open').forEach(el=>{
+      if(!keep || el.id!==keep) el.classList.remove('open');
+    });
+  };
+
+  // Cart must never coexist with a stale full-screen modal/overlay.
+  const cart=q('#cartDrawer');
+  const cartBtn=q('#navCartBtn');
+  if(cartBtn){
+    cartBtn.addEventListener('click',()=>{
+      clearStaleLayers();
+      document.querySelectorAll('.drawer.open').forEach(d=>{if(d!==cart)d.classList.remove('open')});
+      cart?.classList.add('open');
+    },true);
+  }
+
+  // Critical controls get capture-phase handlers so later bubbling handlers cannot silently swallow input.
+  document.addEventListener('click',async e=>{
+    const hit=e.target.closest?.('#checkoutBtn,#btnPlay,#btnPrev,#btnNext,#btnShuffle,#btnRepeat');
+    if(!hit)return;
+    if(hit.id==='checkoutBtn'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      hit.dataset.blPressed='1';
+      try{
+        if(typeof window.checkout==='function') await window.checkout();
+        else if(typeof checkout==='function') await checkout();
+        else throw new Error('checkout handler unavailable');
+      }catch(err){
+        console.error('BEATLAB checkout recovery',err);
+        if(typeof toast==='function') toast('<b>Checkout error</b> · '+String(err?.message||err));
+      }
+      return;
+    }
+    e.preventDefault(); e.stopImmediatePropagation();
+    try{
+      if(hit.id==='btnPlay' && typeof togglePlay==='function') togglePlay();
+      if(hit.id==='btnPrev' && typeof prevTrack==='function') prevTrack();
+      if(hit.id==='btnNext' && typeof nextTrack==='function') nextTrack();
+      if(hit.id==='btnShuffle'){
+        S.shuffle=!S.shuffle; hit.classList.toggle('active',S.shuffle); persist?.();
+      }
+      if(hit.id==='btnRepeat'){
+        S.repeat=!S.repeat; hit.classList.toggle('active',S.repeat); persist?.();
+      }
+    }catch(err){
+      console.error('BEATLAB player recovery',err);
+      if(typeof toast==='function') toast('<b>Player error</b> · '+String(err?.message||err));
+    }
+  },true);
+
+  // Escape is a universal recovery key for accidental/stale blockers.
+  addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      clearStaleLayers();
+      document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
+    }
+  });
+
+  // Surface uncaught JS errors instead of failing silently.
+  addEventListener('error',e=>{
+    console.error('BEATLAB uncaught error',e.error||e.message);
+  });
+  addEventListener('unhandledrejection',e=>{
+    console.error('BEATLAB unhandled rejection',e.reason);
+  });
+})();
+</script>
 </body>
 </html>
