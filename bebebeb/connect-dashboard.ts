@@ -1,0 +1,2 @@
+import {stripe,admin,requireUser,json} from './_lib/server.js';
+export async function POST(request:Request){try{const user=await requireUser(request);const {data:p}=await admin.from('profiles').select('stripe_account_id').eq('id',user.id).single();if(!p?.stripe_account_id)return json({error:'Payout account not configured'},404);const link=await stripe.accounts.createLoginLink(p.stripe_account_id);return json({url:link.url})}catch(e:any){return json({error:e?.message||'Connect failed'},500)}}
