@@ -1983,104 +1983,84 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
 </script>
 
 
-<script id="bl-v1516-input-recovery">
-(()=>{
-  const q=s=>document.querySelector(s);
-  const clearStaleLayers=(keep)=>{
-    document.querySelectorAll('.modal.open,.overlay.open,.user-menu.open,.mobile-player.open').forEach(el=>{
-      if(!keep || el.id!==keep) el.classList.remove('open');
-    });
-  };
 
-  // Cart must never coexist with a stale full-screen modal/overlay.
-  const cart=q('#cartDrawer');
-  const cartBtn=q('#navCartBtn');
-  if(cartBtn){
-    cartBtn.addEventListener('click',()=>{
-      clearStaleLayers();
-      document.querySelectorAll('.drawer.open').forEach(d=>{if(d!==cart)d.classList.remove('open')});
-      cart?.classList.add('open');
-    },true);
+
+
+
+
+
+<script id="bl-v152-checkout-runtime-fix">
+(()=>{
+  async function refreshAuthToken(){
+    if(!S.sb) throw new Error('Supabase client is not ready');
+    const {data,error}=await S.sb.auth.getSession();
+    if(error) throw error;
+    const session=data?.session;
+    if(!session?.access_token){
+      S.token=null;
+      throw new Error('AUTH_REQUIRED');
+    }
+    S.token=session.access_token;
+    S.user=session.user||S.user;
+    return session.access_token;
   }
 
-  // Critical controls get capture-phase handlers so later bubbling handlers cannot silently swallow input.
-  document.addEventListener('click',async e=>{
-    const hit=e.target.closest?.('#checkoutBtn,#btnPlay,#btnPrev,#btnNext,#btnShuffle,#btnRepeat');
-    if(!hit)return;
-    if(hit.id==='checkoutBtn'){
-      e.preventDefault(); e.stopImmediatePropagation();
-      hit.dataset.blPressed='1';
-      try{
-        if(typeof window.checkout==='function') await window.checkout();
-        else if(typeof checkout==='function') await checkout();
-        else throw new Error('checkout handler unavailable');
-      }catch(err){
-        console.error('BEATLAB checkout recovery',err);
-        if(typeof toast==='function') toast('<b>Checkout error</b> · '+String(err?.message||err));
-      }
-      return;
-    }
-    e.preventDefault(); e.stopImmediatePropagation();
+  window.beatlabCheckoutV152=async function(){
+    if(!S.cart?.length){ toast('Crate is empty'); return; }
+    const btn=document.querySelector('#checkoutBtn');
+    const old=btn?.innerHTML||'CHECKOUT';
     try{
-      if(hit.id==='btnPlay' && typeof togglePlay==='function') togglePlay();
-      if(hit.id==='btnPrev' && typeof prevTrack==='function') prevTrack();
-      if(hit.id==='btnNext' && typeof nextTrack==='function') nextTrack();
-      if(hit.id==='btnShuffle'){
-        S.shuffle=!S.shuffle; hit.classList.toggle('active',S.shuffle); persist?.();
+      if(btn){btn.disabled=true;btn.innerHTML='CONNECTING…';}
+      // Payments enabled => NEVER fall back to a fake/local purchase.
+      if(S.config?.paymentsEnabled){
+        let token;
+        try{ token=await refreshAuthToken(); }
+        catch(err){
+          if(String(err?.message||err)==='AUTH_REQUIRED'){
+            toast('<b>Sign in required</b> · sign in before opening Stripe Checkout');
+            openAuth();
+            return;
+          }
+          throw err;
+        }
+        if(btn)btn.innerHTML='OPENING STRIPE…';
+        const res=await fetch('/api/create-checkout',{
+          method:'POST',
+          headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+          body:JSON.stringify({kind:'cart',items:S.cart.map(c=>({beatId:c.beatId,license:c.license}))})
+        });
+        const raw=await res.text();
+        let data={};
+        try{data=raw?JSON.parse(raw):{}}catch(_){data={error:raw||'Invalid server response'}}
+        if(!res.ok||!data.url){
+          throw new Error(data.error||data.message||('Checkout failed (HTTP '+res.status+')'));
+        }
+        window.location.assign(data.url);
+        return;
       }
-      if(hit.id==='btnRepeat'){
-        S.repeat=!S.repeat; hit.classList.toggle('active',S.repeat); persist?.();
-      }
+      // Local demo purchase is allowed only when the server explicitly reports payments disabled.
+      const pending=S.cart.map(x=>({...x}));
+      bl13AddPurchaseFromCart(pending);
+      S.cart=[]; persist(); renderCart(); closeDrawer('cartDrawer');
+      toast(`<b>Demo purchase complete</b> · ${pending.length} item${pending.length>1?'s':''} added to Library`);
+      go('#library');
     }catch(err){
-      console.error('BEATLAB player recovery',err);
-      if(typeof toast==='function') toast('<b>Player error</b> · '+String(err?.message||err));
+      console.error('BEATLAB v15.2 checkout',err);
+      toast('<b>Checkout error</b> · '+esc(String(err?.message||err)));
+    }finally{
+      if(btn){btn.disabled=false;btn.innerHTML=old;}
     }
+  };
+
+  // One authoritative capture handler for Checkout.
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest?.('#checkoutBtn');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    window.beatlabCheckoutV152();
   },true);
-
-  // Escape is a universal recovery key for accidental/stale blockers.
-  addEventListener('keydown',e=>{
-    if(e.key==='Escape'){
-      clearStaleLayers();
-      document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
-    }
-  });
-
-  // Surface uncaught JS errors instead of failing silently.
-  addEventListener('error',e=>{
-    console.error('BEATLAB uncaught error',e.error||e.message);
-  });
-  addEventListener('unhandledrejection',e=>{
-    console.error('BEATLAB unhandled rejection',e.reason);
-  });
 })();
-</script>
-
-
-
-<style id="bl-v1518-diag-style">
-#blV1518Badge{position:fixed;top:72px;right:14px;z-index:2147483647;background:#d6ff3f;color:#050708;padding:7px 9px;border-radius:6px;font:700 11px/1 monospace;pointer-events:none}
-#blV1518Event{position:fixed;top:106px;right:14px;z-index:2147483647;max-width:min(680px,calc(100vw - 28px));background:#050708;color:#d6ff3f;border:1px solid #d6ff3f;padding:8px 10px;border-radius:6px;font:11px/1.35 monospace;pointer-events:none}
-</style>
-<div id="blV1518Badge">v15.1.8 ACTIVE</div>
-<div id="blV1518Event">Waiting for input…</div>
-<script id="bl-v1518-global-input-diagnostic">
-(()=>{
- const out=document.getElementById('blV1518Event');
- const name=el=>{
-   if(!el)return 'null';
-   const id=el.id?'#'+el.id:'';
-   const cls=(typeof el.className==='string'&&el.className.trim())?'.'+el.className.trim().replace(/\s+/g,'.'):'';
-   return el.tagName+id+cls;
- };
- const report=(kind,e)=>{
-   const top=document.elementFromPoint(e.clientX,e.clientY);
-   out.textContent=kind+' x='+Math.round(e.clientX)+' y='+Math.round(e.clientY)+' | target='+name(e.target)+' | top='+name(top);
- };
- window.addEventListener('pointerdown',e=>report('POINTER',e),true);
- window.addEventListener('click',e=>report('CLICK',e),true);
- window.addEventListener('error',e=>{out.textContent='JS ERROR: '+e.message},true);
- window.addEventListener('unhandledrejection',e=>{out.textContent='PROMISE ERROR: '+String(e.reason?.message||e.reason)},true);
-})();
-</script>
+</script>\n
 </body>
 </html>
