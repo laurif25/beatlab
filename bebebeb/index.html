@@ -516,7 +516,16 @@ const S = {
   studioRange:'28D',
 };
 try { Object.assign(S, JSON.parse(localStorage.getItem('beatlab_v9')||'{}')); S.sb=null; } catch(e){}
-const persist = () => { try{ localStorage.setItem('beatlab_v9', JSON.stringify({liked:[...S.liked],faved:[...S.faved],follows:[...S.follows],beatFavs:[...S.beatFavs],cart:S.cart,user:S.user})); }catch(e){} };
+const persist = () => {
+  try{
+    localStorage.setItem('beatlab_v9', JSON.stringify({liked:[...S.liked],faved:[...S.faved],follows:[...S.follows],beatFavs:[...S.beatFavs],cart:S.cart,user:S.user}));
+    localStorage.setItem('beatlab_v10_extra', JSON.stringify({
+      projectTasks:Array.isArray(S.projectTasks)?S.projectTasks:[],
+      projectFiles:Array.isArray(S.projectFiles)?S.projectFiles:[],
+      savedPlaylists:Array.isArray(S.savedPlaylists)?S.savedPlaylists:[]
+    }));
+  }catch(e){}
+};
 
 const byId = (list,id) => list.find(x=>x.id===id);
 const artOf = a => avatarArt(a.display_name||a.username);
@@ -1387,8 +1396,7 @@ const BL10 = {
 S.projectTasks = Array.isArray(S.projectTasks)?S.projectTasks:BL10.projectTasks;
 S.projectFiles = Array.isArray(S.projectFiles)?S.projectFiles:BL10.projectFiles;
 S.savedPlaylists = Array.isArray(S.savedPlaylists)?S.savedPlaylists:[...DEMO_PLAYLISTS];
-const _persist10=persist;
-persist=()=>{ try{localStorage.setItem('beatlab_v10_extra',JSON.stringify({projectTasks:S.projectTasks,projectFiles:S.projectFiles,savedPlaylists:S.savedPlaylists}));}catch(e){} _persist10(); };
+// v15.2.1: extra state is persisted by the original persist() function above; no const reassignment.
 try{const x=JSON.parse(localStorage.getItem('beatlab_v10_extra')||'{}'); if(Array.isArray(x.projectTasks))S.projectTasks=x.projectTasks;if(Array.isArray(x.projectFiles))S.projectFiles=x.projectFiles;if(Array.isArray(x.savedPlaylists))S.savedPlaylists=x.savedPlaylists;}catch(e){}
 
 function blFrequencyId(t){ if(!t)return'BL-000000'; return 'BL-'+String(seedFrom((t.title||'')+(t.artist||''))).slice(-6); }
