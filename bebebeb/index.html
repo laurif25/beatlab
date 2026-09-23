@@ -2127,5 +2127,52 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
 })();
 </script>
 
+
+<script id="beatlab-v16-connected-product-core">
+/* v16 Connected Product Core — behavior/data only; Kimi visual baseline untouched. */
+async function bl16LoadProject(p){
+  if(!p?.cloudId||!S.token)return p;
+  try{
+    const body=await bl15Api('/api/project-room?id='+encodeURIComponent(p.cloudId));
+    p.status=body.room?.status||p.status;
+    p.readiness=Number(body.room?.release_readiness??p.readiness??0);
+    p.tasks=(body.tasks||[]).map(t=>({id:t.id,title:t.title,done:t.status==='done',cloud:true}));
+    p.files=(body.files||[]).map(f=>({id:f.id,name:f.name,url:f.file_url,size:f.file_size,mime:f.mime_type,cloud:true}));
+    p.splits=(body.splits||[]).map(s=>({userId:s.user_id,percentage:Number(s.percentage),role:s.role,confirmed:s.confirmed,cloud:true}));
+    p.members=(body.members||[]).map(m=>m.user_id);
+    bl13Save(); return p;
+  }catch(e){console.warn('v16 project load',e);return p}
+}
+const _bl13ProjectView16=bl13ProjectView;
+bl13ProjectView=function(id){
+  const p=bl13CurrentProject(id);
+  if(p?.cloudId&&!p._v16loading){p._v16loading=true;setTimeout(async()=>{await bl16LoadProject(p);p._v16loading=false;if(location.hash==='#project/'+p.id)route()},0)}
+  return _bl13ProjectView16(id);
+};
+window.bl13AddProjectTask=async function(projectId){
+  const p=bl13CurrentProject(projectId);if(!p)return;
+  const title=prompt('Task name');if(!title)return;
+  if(p.cloudId&&S.token){try{await bl15Api('/api/project-room',{method:'POST',body:JSON.stringify({roomId:p.cloudId,action:'add_task',title})});await bl16LoadProject(p);toast('<b>Task saved</b> · Project Room synced');route();return}catch(e){toast('<b>Task failed</b> · '+esc(e.message));return}}
+  p.tasks=p.tasks||[];p.tasks.push({id:bl13Id('task'),title,done:false});bl13Save();route();
+};
+window.bl13ToggleTask=async function(projectId,taskId){
+  const p=bl13CurrentProject(projectId);const t=p?.tasks?.find(x=>x.id===taskId);if(!t)return;
+  if(p.cloudId&&S.token&&t.cloud){try{await bl15Api('/api/project-room',{method:'POST',body:JSON.stringify({roomId:p.cloudId,action:'toggle_task',taskId})});await bl16LoadProject(p);route();return}catch(e){toast('<b>Task update failed</b> · '+esc(e.message));return}}
+  t.done=!t.done;p.readiness=Math.min(96,Math.max(12,(p.readiness||20)+(t.done?12:-12)));bl13Save();route();
+};
+window.bl16SaveMySplit=async function(projectId){
+  const p=bl13CurrentProject(projectId);if(!p?.cloudId)return toast('Cloud Project Room required');
+  const raw=prompt('Your split percentage (0–100)');if(raw===null)return;const percentage=Number(raw);
+  if(!Number.isFinite(percentage)||percentage<0||percentage>100)return toast('Enter a number between 0 and 100');
+  try{await bl15Api('/api/project-room',{method:'POST',body:JSON.stringify({roomId:p.cloudId,action:'save_split',percentage,confirmed:true})});await bl16LoadProject(p);toast('<b>Split saved</b> · '+percentage+'%');route()}catch(e){toast('<b>Split failed</b> · '+esc(e.message))}
+};
+const _projectView16=bl13ProjectView;
+bl13ProjectView=function(id){
+  let base=_projectView16(id),p=bl13CurrentProject(id);if(!p)return base;
+  const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16LoadProject(bl13CurrentProject('${p.id}')).then(()=>route())">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>`;
+  return base.replace(footerHTML(),cloud+footerHTML());
+};
+</script>
+
 </body>
 </html>
