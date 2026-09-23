@@ -2146,7 +2146,18 @@ async function bl16LoadProject(p){
 const _bl13ProjectView16=bl13ProjectView;
 bl13ProjectView=function(id){
   const p=bl13CurrentProject(id);
-  if(p?.cloudId&&!p._v16loading){p._v16loading=true;setTimeout(async()=>{await bl16LoadProject(p);p._v16loading=false;if(location.hash==='#project/'+p.id)route()},0)}
+  /* Load cloud state once per room entry. The previous v16 code called route()
+     after every load, which rendered again and immediately scheduled another
+     load: an endless render/sync loop that made the Project Room feel frozen. */
+  if(p?.cloudId&&!p._v16loaded&&!p._v16loading){
+    p._v16loading=true;
+    setTimeout(async()=>{
+      await bl16LoadProject(p);
+      p._v16loading=false;
+      p._v16loaded=true;
+      if(location.hash==='#project/'+p.id)route();
+    },0);
+  }
   return _bl13ProjectView16(id);
 };
 window.bl13AddProjectTask=async function(projectId){
@@ -2169,7 +2180,7 @@ window.bl16SaveMySplit=async function(projectId){
 const _projectView16=bl13ProjectView;
 bl13ProjectView=function(id){
   let base=_projectView16(id),p=bl13CurrentProject(id);if(!p)return base;
-  const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16LoadProject(bl13CurrentProject('${p.id}')).then(()=>route())">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>`;
+  const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="(()=>{const q=bl13CurrentProject('${p.id}');q._v16loading=true;bl16LoadProject(q).then(()=>{q._v16loading=false;q._v16loaded=true;route()})})()">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>`;
   return base.replace(footerHTML(),cloud+footerHTML());
 };
 </script>
