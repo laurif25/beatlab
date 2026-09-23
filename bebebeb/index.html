@@ -2070,5 +2070,62 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
   },true);
 })();
 </script>\n
+
+<script id="bl-v1523-payment-success-library">
+(()=>{
+  const params=new URLSearchParams(window.location.search);
+  const isCartSuccess=params.get('payment')==='success' && !!params.get('session_id');
+  if(!isCartSuccess)return;
+
+  async function finishPaidCheckout(){
+    try{
+      // Stripe has returned from a successful cart Checkout.
+      S.cart=[];
+      persist();
+      try{ renderCart(); }catch(_){}
+      try{ closeDrawer('cartDrawer'); }catch(_){}
+
+      // Give Supabase auth restoration a moment, then force a fresh cloud Library load.
+      for(let i=0;i<20 && (!S.user || !S.token);i++){
+        try{
+          if(S.sb){
+            const {data}=await S.sb.auth.getSession();
+            if(data?.session?.access_token){
+              S.token=data.session.access_token;
+              S.user=data.session.user||S.user;
+              break;
+            }
+          }
+        }catch(_){}
+        await new Promise(r=>setTimeout(r,150));
+      }
+
+      if(typeof BL13!=='undefined') BL13.loadedCloudLibrary=false;
+
+      // Remove Stripe query data from the address and land directly in Library.
+      history.replaceState({},'',window.location.pathname+'#library');
+      try{ route(); }catch(_){ window.location.hash='#library'; }
+
+      if(typeof bl13LoadCloudLibrary==='function'){
+        try{ await bl13LoadCloudLibrary(); }catch(_){}
+      }
+      try{ route(); }catch(_){}
+
+      toast('<b>PURCHASE COMPLETE</b> · your beats are now in Library');
+    }catch(err){
+      console.error('BEATLAB payment return',err);
+      history.replaceState({},'',window.location.pathname+'#library');
+      window.location.hash='#library';
+    }
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(finishPaidCheckout,0),{once:true});
+  }else{
+    setTimeout(finishPaidCheckout,0);
+  }
+})();
+</script>
+
 </body>
 </html>
