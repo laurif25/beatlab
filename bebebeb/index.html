@@ -2131,17 +2131,24 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
 <script id="beatlab-v16-connected-product-core">
 /* v16 Connected Product Core — behavior/data only; Kimi visual baseline untouched. */
 async function bl16LoadProject(p){
-  if(!p?.cloudId||!S.token)return p;
+  if(!p?.cloudId||!S.sb||!S.user)return p;
   try{
-    const body=await bl15Api('/api/project-room?id='+encodeURIComponent(p.cloudId));
-    p.status=body.room?.status||p.status;
-    p.readiness=Number(body.room?.release_readiness??p.readiness??0);
-    p.tasks=(body.tasks||[]).map(t=>({id:t.id,title:t.title,done:t.status==='done',cloud:true}));
-    p.files=(body.files||[]).map(f=>({id:f.id,name:f.name,url:f.file_url,size:f.file_size,mime:f.mime_type,cloud:true}));
-    p.splits=(body.splits||[]).map(s=>({userId:s.user_id,percentage:Number(s.percentage),role:s.role,confirmed:s.confirmed,cloud:true}));
-    p.members=(body.members||[]).map(m=>m.user_id);
+    const [room,tasks,files,splits,members]=await Promise.all([
+      S.sb.from('project_rooms').select('id,status,release_readiness').eq('id',p.cloudId).single(),
+      S.sb.from('project_tasks').select('id,title,status,creator_id,assignee_id,created_at').eq('project_room_id',p.cloudId).order('created_at'),
+      S.sb.from('project_files').select('id,name,file_url,file_size,mime_type,created_at').eq('project_room_id',p.cloudId).order('created_at',{ascending:false}),
+      S.sb.from('project_splits').select('user_id,percentage,role,confirmed,updated_at').eq('project_room_id',p.cloudId),
+      S.sb.from('project_members').select('user_id,role,joined_at').eq('project_room_id',p.cloudId)
+    ]);
+    for(const r of [room,tasks,files,splits,members]) if(r.error) throw r.error;
+    p.status=room.data?.status||p.status;
+    p.readiness=Number(room.data?.release_readiness??p.readiness??0);
+    p.tasks=(tasks.data||[]).map(t=>({id:t.id,title:t.title,done:t.status==='done',cloud:true}));
+    p.files=(files.data||[]).map(f=>({id:f.id,name:f.name,url:f.file_url,size:f.file_size,mime:f.mime_type,cloud:true}));
+    p.splits=(splits.data||[]).map(s=>({userId:s.user_id,percentage:Number(s.percentage),role:s.role,confirmed:s.confirmed,cloud:true}));
+    p.members=(members.data||[]).map(m=>m.user_id);
     bl13Save(); return p;
-  }catch(e){console.warn('v16 project load',e);return p}
+  }catch(e){console.warn('v16 project load',e);toast('<b>Cloud sync failed</b> · '+esc(e.message||'Unknown error'));return p}
 }
 const _bl13ProjectView16=bl13ProjectView;
 bl13ProjectView=function(id){
@@ -2163,19 +2170,29 @@ bl13ProjectView=function(id){
 window.bl13AddProjectTask=async function(projectId){
   const p=bl13CurrentProject(projectId);if(!p)return;
   const title=prompt('Task name');if(!title)return;
-  if(p.cloudId&&S.token){try{await bl15Api('/api/project-room',{method:'POST',body:JSON.stringify({roomId:p.cloudId,action:'add_task',title})});await bl16LoadProject(p);toast('<b>Task saved</b> · Project Room synced');route();return}catch(e){toast('<b>Task failed</b> · '+esc(e.message));return}}
+  if(p.cloudId&&S.sb&&S.user){try{
+    const {error}=await S.sb.from('project_tasks').insert({project_room_id:p.cloudId,creator_id:S.user.id,assignee_id:S.user.id,title:String(title).trim().slice(0,180),status:'open'});
+    if(error)throw error;await bl16LoadProject(p);toast('<b>Task saved</b> · Project Room synced');route();return
+  }catch(e){toast('<b>Task failed</b> · '+esc(e.message||'Unknown error'));return}}
   p.tasks=p.tasks||[];p.tasks.push({id:bl13Id('task'),title,done:false});bl13Save();route();
 };
 window.bl13ToggleTask=async function(projectId,taskId){
   const p=bl13CurrentProject(projectId);const t=p?.tasks?.find(x=>x.id===taskId);if(!t)return;
-  if(p.cloudId&&S.token&&t.cloud){try{await bl15Api('/api/project-room',{method:'POST',body:JSON.stringify({roomId:p.cloudId,action:'toggle_task',taskId})});await bl16LoadProject(p);route();return}catch(e){toast('<b>Task update failed</b> · '+esc(e.message));return}}
+  if(p.cloudId&&S.sb&&S.user&&t.cloud){try{
+    const {error}=await S.sb.from('project_tasks').update({status:t.done?'open':'done'}).eq('id',taskId).eq('project_room_id',p.cloudId);
+    if(error)throw error;await bl16LoadProject(p);route();return
+  }catch(e){toast('<b>Task update failed</b> · '+esc(e.message||'Unknown error'));return}}
   t.done=!t.done;p.readiness=Math.min(96,Math.max(12,(p.readiness||20)+(t.done?12:-12)));bl13Save();route();
 };
 window.bl16SaveMySplit=async function(projectId){
   const p=bl13CurrentProject(projectId);if(!p?.cloudId)return toast('Cloud Project Room required');
   const raw=prompt('Your split percentage (0–100)');if(raw===null)return;const percentage=Number(raw);
   if(!Number.isFinite(percentage)||percentage<0||percentage>100)return toast('Enter a number between 0 and 100');
-  try{await bl15Api('/api/project-room',{method:'POST',body:JSON.stringify({roomId:p.cloudId,action:'save_split',percentage,confirmed:true})});await bl16LoadProject(p);toast('<b>Split saved</b> · '+percentage+'%');route()}catch(e){toast('<b>Split failed</b> · '+esc(e.message))}
+  try{
+    if(!S.sb||!S.user)throw new Error('Sign in required');
+    const {error}=await S.sb.from('project_splits').upsert({project_room_id:p.cloudId,user_id:S.user.id,percentage,role:'owner',confirmed:true,updated_at:new Date().toISOString()},{onConflict:'project_room_id,user_id'});
+    if(error)throw error;await bl16LoadProject(p);toast('<b>Split saved</b> · '+percentage+'%');route()
+  }catch(e){toast('<b>Split failed</b> · '+esc(e.message||'Unknown error'))}
 };
 const _projectView16=bl13ProjectView;
 bl13ProjectView=function(id){
