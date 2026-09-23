@@ -6,9 +6,9 @@ export async function POST(request:Request){try{
  if(kind==='cart'){
   const items=Array.isArray(body.items)?body.items.slice(0,20):[]; if(!items.length)return json({error:'Cart is empty'},400);
   const line_items:any[]=[]; const metadataItems:any[]=[];
-  for(const row of items){const localId=String(row.beatId);const license=allowedLicenses.includes(row.license)?row.license:'Basic';let title='',amount=0,sellerId:null,beatUuid:null;
-   const {data:dbBeat}=await admin.from('beats').select('*').eq('client_id',localId).eq('active',true).maybeSingle();
-   if(dbBeat){title=dbBeat.title;beatUuid=dbBeat.id;sellerId=dbBeat.owner_id;amount=Number((dbBeat.license_prices||{})[license]??0)}else{const d=demoCatalog[localId];if(!d)throw new Error('Beat not found: '+localId);title=d.title;amount=Number(d.prices[license]??0)}
+  for(const row of items){const localId=String(row.beatId);const normalizedId=/^b\d+$/i.test(localId)?localId.slice(1):localId;const license=allowedLicenses.includes(row.license)?row.license:'Basic';let title='',amount=0,sellerId:null,beatUuid:null;
+   const lookupIds=[localId,...(normalizedId!==localId?[normalizedId]:[])];const {data:dbBeats,error:beatLookupError}=await admin.from('beats').select('*').in('client_id',lookupIds).eq('active',true).limit(1);if(beatLookupError)throw beatLookupError;const dbBeat=dbBeats?.[0]||null;
+   if(dbBeat){title=dbBeat.title;beatUuid=dbBeat.id;sellerId=dbBeat.owner_id;amount=Number((dbBeat.license_prices||{})[license]??0)}else{const d=demoCatalog[localId]||demoCatalog[normalizedId];if(!d)return json({error:'Beat not found: '+localId},404);title=d.title;amount=Number(d.prices[license]??0)}
    if(amount<0||amount>10000)throw new Error('Invalid price'); line_items.push({quantity:1,price_data:{currency:'eur',unit_amount:Math.round(amount*100),product_data:{name:`${title} · ${license} License`,metadata:{beat_client_id:localId,license}}}});metadataItems.push({beatClientId:localId,beatId:beatUuid,title,license,amount,sellerId});
   }
   const total=metadataItems.reduce((a,x)=>a+x.amount,0);const {data:purchase,error}=await admin.from('purchases').insert({user_id:user.id,status:'pending',total_eur:total}).select().single();if(error)throw error;
