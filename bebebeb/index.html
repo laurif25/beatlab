@@ -2206,7 +2206,48 @@ bl13ProjectView=function(id){
 window.BL161={loaded:false,loading:null,real:[]};
 function bl161NormalizeBeat(b){const p=b.license_prices||{},basic=Number(p.Basic??0);return{id:String(b.client_id||b.id),uuid:b.id,title:b.title||'UNTITLED',producer:b.producer_name||'CREATOR',genre:b.genre||'other',bpm:Number(b.bpm||0)||null,key:b.music_key||'—',price:basic,prices:{Basic:Number(p.Basic??basic),Premium:Number(p.Premium??39.99),Unlimited:Number(p.Unlimited??79.99),Exclusive:Number(p.Exclusive??199.99)},audio:b.audio_url||'',cover:b.cover_url||'',ownerId:b.owner_id||null,active:b.active!==false,real:true,createdAt:b.created_at};}
 function bl161Merge(){if(typeof DEMO_BEATS==='undefined'||!Array.isArray(DEMO_BEATS)||!BL161.real.length)return;const m=new Map(DEMO_BEATS.map(x=>[String(x.id),x]));for(const b of BL161.real)m.set(String(b.id),{...(m.get(String(b.id))||{}),...b});DEMO_BEATS.splice(0,DEMO_BEATS.length,...m.values());}
-async function bl161LoadMarketplace(force=false){if(BL161.loaded&&!force)return BL161.real;if(BL161.loading)return BL161.loading;BL161.loading=(async()=>{try{if(!S.sb)throw new Error('Supabase is not ready');const {data,error}=await S.sb.from('beats').select('id,client_id,title,producer_name,genre,bpm,music_key,audio_url,cover_url,license_prices,exclusive_sold,active,owner_id,created_at').eq('active',true).eq('exclusive_sold',false).order('created_at',{ascending:false}).limit(200);if(error)throw error;BL161.real=(data||[]).map(bl161NormalizeBeat);bl161Merge();BL161.loaded=true;return BL161.real}catch(e){console.warn('v16.1 marketplace load',e);return []}finally{BL161.loading=null}})();return BL161.loading;}
+async function bl161LoadMarketplace(force=false){
+  if(BL161.loaded&&!force)return BL161.real;
+  if(BL161.loading)return BL161.loading;
+  BL161.loading=(async()=>{
+    try{
+      let rows=null, primaryError=null;
+      try{
+        const r=await fetch('/api/catalog',{headers:{'Accept':'application/json'},cache:'no-store'});
+        const j=await r.json();
+        if(!r.ok)throw new Error(j.error||('Catalog HTTP '+r.status));
+        rows=j.beats||[];
+      }catch(e){primaryError=e}
+      if(rows===null){
+        if(!S.sb)throw primaryError||new Error('Supabase is not ready');
+        const {data,error}=await S.sb.from('beats')
+          .select('id,client_id,title,producer_name,genre,bpm,music_key,audio_url,cover_url,license_prices,exclusive_sold,active,owner_id,created_at')
+          .eq('active',true).eq('exclusive_sold',false)
+          .order('created_at',{ascending:false}).limit(200);
+        if(error)throw error;
+        rows=data||[];
+      }
+      BL161.real=rows.map(bl161NormalizeBeat);
+      bl161Merge();
+      BL161.loaded=true;
+      return BL161.real;
+    }catch(e){
+      console.error('v16.1.2 catalog load failed',e);
+      const app=document.querySelector('#app');
+      if(app && location.hash==='#market'){
+        const old=document.querySelector('#bl161CatalogError');
+        if(!old){
+          const box=document.createElement('div'); box.id='bl161CatalogError';
+          box.style.cssText='margin:12px 4vw;padding:10px;border:1px solid currentColor;font-family:monospace';
+          box.textContent='CATALOG SYNC ERROR: '+(e?.message||e);
+          app.prepend(box);
+        }
+      }
+      return [];
+    }finally{BL161.loading=null}
+  })();
+  return BL161.loading;
+}
 setTimeout(()=>bl161LoadMarketplace().then(()=>{if(['#market','#discover','#home',''].includes(location.hash))route()}),350);
 const bl161Route=route;route=function(){const hash=location.hash||'#home';if((hash==='#market'||hash==='#discover'||hash==='#home')&&!BL161.loaded&&!BL161.loading)bl161LoadMarketplace().then(()=>bl161Route());return bl161Route();};
 document.addEventListener('click',e=>{const el=e.target?.closest?.('button');if(!el)return;const t=(el.textContent||'').trim().toUpperCase();if(t.includes('PUBLISH')||t.includes('UPLOAD'))setTimeout(()=>{BL161.loaded=false;bl161LoadMarketplace(true)},1800)},true);
