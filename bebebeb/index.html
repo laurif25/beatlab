@@ -2245,6 +2245,49 @@ window.bl13ToggleTask=async function(projectId,taskId){
   }catch(e){toast('<b>Task update failed</b> · '+esc(e.message||'Unknown error'));return}}
   t.done=!t.done;p.readiness=Math.min(96,Math.max(12,(p.readiness||20)+(t.done?12:-12)));bl13Save();route();
 };
+
+window.bl16UploadProjectFile=async function(projectId){
+  const p=bl13CurrentProject(projectId);
+  if(!p?.cloudId)return toast('Cloud Project Room required');
+  if(!S.sb||!S.user)return toast('Sign in required');
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='audio/*,.wav,.mp3,.aiff,.flac,.m4a,.zip,.pdf,.txt,.doc,.docx,image/*';
+  input.onchange=async()=>{
+    const f=input.files?.[0]; if(!f)return;
+    if(f.size>100*1024*1024)return toast('<b>File too large</b> · maximum 100 MB');
+    const safe=f.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-140);
+    const path=`${S.user.id}/${p.cloudId}/${Date.now()}-${safe}`;
+    try{
+      toast('<b>Uploading</b> · '+esc(f.name));
+      const up=await S.sb.storage.from('project-files').upload(path,f,{upsert:false,contentType:f.type||undefined});
+      if(up.error)throw up.error;
+      const row=await S.sb.from('project_files').insert({
+        project_room_id:p.cloudId,uploader_id:S.user.id,name:f.name,
+        file_url:path,file_size:f.size,mime_type:f.type||'application/octet-stream'
+      }).select('id,name,file_url,file_size,mime_type,created_at').single();
+      if(row.error){
+        await S.sb.storage.from('project-files').remove([path]);
+        throw row.error;
+      }
+      await bl16LoadProject(p);
+      toast('<b>File uploaded</b> · private Project Room storage');
+      route();
+    }catch(e){toast('<b>Upload failed</b> · '+esc(e.message||'Unknown error'))}
+  };
+  input.click();
+};
+window.bl16OpenProjectFile=async function(projectId,fileId){
+  const p=bl13CurrentProject(projectId),f=p?.files?.find(x=>x.id===fileId);
+  if(!p?.cloudId||!f?.url||!S.sb)return toast('File unavailable');
+  try{
+    const {data,error}=await S.sb.storage.from('project-files').createSignedUrl(f.url,60);
+    if(error)throw error;
+    if(!data?.signedUrl)throw new Error('Signed URL unavailable');
+    window.open(data.signedUrl,'_blank','noopener,noreferrer');
+  }catch(e){toast('<b>Open file failed</b> · '+esc(e.message||'Unknown error'))}
+};
+
 window.bl16SaveMySplit=async function(projectId){
   const p=bl13CurrentProject(projectId);if(!p?.cloudId)return toast('Cloud Project Room required');
   const raw=prompt('Your split percentage (0–100)');if(raw===null)return;const percentage=Number(raw);
@@ -2258,11 +2301,13 @@ window.bl16SaveMySplit=async function(projectId){
 const _projectView16=bl13ProjectView;
 bl13ProjectView=function(id){
   let base=_projectView16(id),p=bl13CurrentProject(id);if(!p)return base;
-  const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="(()=>{const q=bl13CurrentProject('${p.id}');q._v16loading=true;bl16LoadProject(q).then(()=>{q._v16loading=false;q._v16loaded=true;route()})})()">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>`;
+  const fileRows=(p.files||[]).map(f=>`<div class="bl12-row"><div><b>${esc(f.name||'Untitled file')}</b><div class="mono" style="color:var(--ink-dim)">${f.size?((Number(f.size)/1048576).toFixed(1)+' MB'):'FILE'} · ${esc(f.mime||'private')}</div></div><span class="sp"></span>${f.cloud?`<button class="btn btn-ghost btn-sm" onclick="bl16OpenProjectFile('${p.id}','${f.id}')">OPEN</button>`:''}</div>`).join('');
+  const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="(()=>{const q=bl13CurrentProject('${p.id}');q._v16loading=true;bl16LoadProject(q).then(()=>{q._v16loading=false;q._v16loaded=true;route()})})()">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>
+  <section class="section"><div class="panel"><div class="sec-head"><div><div class="kicker">PRIVATE STORAGE</div><h2 class="sec-title" style="font-size:28px">PROJECT <em>FILES</em></h2><p class="sec-sub">Files are private to this Project Room and loaded from Supabase.</p></div>${p.cloudId?`<button class="btn btn-acid btn-sm" onclick="bl16UploadProjectFile('${p.id}')">+ FILE</button>`:''}</div>${fileRows||'<div class="bl13-empty">No project files yet.</div>'}</div></section>`;
   return base.replace(footerHTML(),cloud+footerHTML());
 };
 </script>
 
-<!-- BEATLAB v16.0.3 MARKET SEARCH FIX -->
+<!-- BEATLAB v16.0.4 PROJECT FILES FULL DEPLOY -->
 </body>
 </html>
