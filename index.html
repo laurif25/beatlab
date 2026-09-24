@@ -516,7 +516,16 @@ const S = {
   studioRange:'28D',
 };
 try { Object.assign(S, JSON.parse(localStorage.getItem('beatlab_v9')||'{}')); S.sb=null; } catch(e){}
-const persist = () => { try{ localStorage.setItem('beatlab_v9', JSON.stringify({liked:[...S.liked],faved:[...S.faved],follows:[...S.follows],beatFavs:[...S.beatFavs],cart:S.cart,user:S.user})); }catch(e){} };
+const persist = () => {
+  try{
+    localStorage.setItem('beatlab_v9', JSON.stringify({liked:[...S.liked],faved:[...S.faved],follows:[...S.follows],beatFavs:[...S.beatFavs],cart:S.cart,user:S.user}));
+    localStorage.setItem('beatlab_v10_extra', JSON.stringify({
+      projectTasks:Array.isArray(S.projectTasks)?S.projectTasks:[],
+      projectFiles:Array.isArray(S.projectFiles)?S.projectFiles:[],
+      savedPlaylists:Array.isArray(S.savedPlaylists)?S.savedPlaylists:[]
+    }));
+  }catch(e){}
+};
 
 const byId = (list,id) => list.find(x=>x.id===id);
 const artOf = a => avatarArt(a.display_name||a.username);
@@ -875,14 +884,75 @@ VIEWS.market = () => `<div class="page">
   <section class="section" style="margin-top:16px">
     <div class="sec-head"><div><div class="kicker">MARKETPLACE</div><h2 class="sec-title">THE <em>CRATE</em></h2>
       <p class="sec-sub">Instant delivery · tracked stems · exclusive plates removed from sale forever. Every license is a real contract.</p></div></div>
+    <div style="display:flex;gap:10px;align-items:center;margin:0 0 14px">
+      <input id="marketSearch" class="input" type="search" autocomplete="off"
+        placeholder="SEARCH BEATS · TITLE · PRODUCER · GENRE · BPM · KEY"
+        oninput="marketSearch(this.value)"
+        style="width:100%;max-width:720px">
+      <button class="btn" type="button" onclick="marketClearSearch()">CLEAR</button>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px">
-      <button class="chip-btn active">ALL</button>${[...new Set(DEMO_BEATS.map(b=>b.genre))].map(g=>`<button class="chip-btn" onclick="filterBeats(this,'${g}')">${g.toUpperCase()}</button>`).join('')}
+      <button class="chip-btn active" onclick="filterBeats(this,'ALL')">ALL</button>${[...new Set(DEMO_BEATS.map(b=>b.genre))].map(g=>`<button class="chip-btn" onclick="filterBeats(this,'${g}')">${g.toUpperCase()}</button>`).join('')}
       <button class="chip-btn" onclick="filterBeats(this,'__EXCLUSIVE')">EXCLUSIVES</button>
       <button class="chip-btn" onclick="filterBeats(this,'__FREE')">FREE</button></div>
+    <div id="marketSearchStatus" style="font:9px var(--font-m);letter-spacing:.08em;color:var(--ink-dim);margin:-8px 0 14px"></div>
     <div class="beat-grid" id="beatGrid">${DEMO_BEATS.map(beatCard).join('')}</div>
   </section>${footerHTML()}</div>`;
-window.filterBeats = (btn,f)=>{ $$('.chip-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  $('#beatGrid').innerHTML = DEMO_BEATS.filter(b=> f==='ALL'||b.genre===f || (f==='__EXCLUSIVE'&&b.license_prices.Exclusive>=200) || (f==='__FREE'&&b.license_prices.Basic===0)).map(beatCard).join(''); bindWaves(); };
+
+window.BL_MARKET = window.BL_MARKET || {filter:'ALL', query:''};
+
+window.renderMarketBeats = () => {
+  const state = window.BL_MARKET || {filter:'ALL',query:''};
+  const q = String(state.query || '').trim().toLowerCase();
+  const filtered = DEMO_BEATS.filter(b => {
+    const f = state.filter || 'ALL';
+    const filterOK = f==='ALL' || b.genre===f ||
+      (f==='__EXCLUSIVE' && Number(b.license_prices?.Exclusive||0)>=200) ||
+      (f==='__FREE' && Number(b.license_prices?.Basic||0)===0);
+    if(!filterOK) return false;
+    if(!q) return true;
+    const haystack = [
+      b.title, b.producer, b.genre, b.bpm, b.key,
+      b.license_prices?.Basic, b.license_prices?.Premium,
+      b.license_prices?.Unlimited, b.license_prices?.Exclusive
+    ].filter(v=>v!==undefined && v!==null).join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+  const grid = $('#beatGrid');
+  if(!grid) return;
+  grid.innerHTML = filtered.length
+    ? filtered.map(beatCard).join('')
+    : `<div style="grid-column:1/-1;border:1px solid var(--line);border-radius:18px;padding:28px;text-align:center">
+         <div class="kicker">NO MATCHES</div>
+         <div style="font-family:var(--font-d);font-size:28px;margin-top:6px">NO BEATS FOUND</div>
+         <div style="color:var(--ink-dim);margin-top:8px">Try another title, producer, genre, BPM or key.</div>
+       </div>`;
+  const status = $('#marketSearchStatus');
+  if(status) status.textContent = q ? `${filtered.length} RESULT${filtered.length===1?'':'S'} FOR “${state.query.trim()}”` : '';
+  bindWaves();
+};
+
+window.filterBeats = (btn,f)=>{
+  window.BL_MARKET = window.BL_MARKET || {};
+  window.BL_MARKET.filter = f;
+  $$('.chip-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderMarketBeats();
+};
+
+window.marketSearch = (value)=>{
+  window.BL_MARKET = window.BL_MARKET || {};
+  window.BL_MARKET.query = String(value || '');
+  renderMarketBeats();
+};
+
+window.marketClearSearch = ()=>{
+  window.BL_MARKET = {filter:'ALL',query:''};
+  const input = $('#marketSearch');
+  if(input) input.value = '';
+  $$('.chip-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  renderMarketBeats();
+};
 
 VIEWS.track = (id) => { const t=byId(DEMO_TRACKS,id); if(!t) return VIEWS.home();
   const a=artistOf(t.owner_id);
@@ -1387,8 +1457,7 @@ const BL10 = {
 S.projectTasks = Array.isArray(S.projectTasks)?S.projectTasks:BL10.projectTasks;
 S.projectFiles = Array.isArray(S.projectFiles)?S.projectFiles:BL10.projectFiles;
 S.savedPlaylists = Array.isArray(S.savedPlaylists)?S.savedPlaylists:[...DEMO_PLAYLISTS];
-const _persist10=persist;
-persist=()=>{ try{localStorage.setItem('beatlab_v10_extra',JSON.stringify({projectTasks:S.projectTasks,projectFiles:S.projectFiles,savedPlaylists:S.savedPlaylists}));}catch(e){} _persist10(); };
+// v15.2.1: extra state is persisted by the original persist() function above; no const reassignment.
 try{const x=JSON.parse(localStorage.getItem('beatlab_v10_extra')||'{}'); if(Array.isArray(x.projectTasks))S.projectTasks=x.projectTasks;if(Array.isArray(x.projectFiles))S.projectFiles=x.projectFiles;if(Array.isArray(x.savedPlaylists))S.savedPlaylists=x.savedPlaylists;}catch(e){}
 
 function blFrequencyId(t){ if(!t)return'BL-000000'; return 'BL-'+String(seedFrom((t.title||'')+(t.artist||''))).slice(-6); }
@@ -1542,6 +1611,9 @@ function bl11OpenCard(o){const t=byId(DEMO_TRACKS,o.track_id),a=artistOf(o.owner
 window.bl11Apply=async id=>{const o=BL11.openTracks.find(x=>x.id===id);if(!o)return;if(!S.user)return openAuth('login');const note=prompt(`Apply to ${o.type}\nTell the creator what you want to contribute:`);if(!note)return;try{if(S.sb&&S.user){await S.sb.from('open_track_applications').upsert({open_track_id:id,applicant_id:S.user.id,note,status:'NEW'},{onConflict:'open_track_id,applicant_id'});}toast('Application sent privately · creator notified');blTrackEvent('open_track_apply',{open_track_id:id});}catch(e){toast('Saved in demo mode');}};
 window.bl11StartSession=async()=>{if(!S.user)return openAuth('login');const title=prompt('Session name:','Untitled BEATLAB Session');if(!title)return;const ses={id:'ses_'+Date.now(),title,owner_id:S.user.id,status:'LIVE',created_at:new Date().toISOString()};BL11.sessions.unshift(ses);localStorage.setItem('beatlab_sessions_v11',JSON.stringify(BL11.sessions.slice(0,30)));try{if(S.sb)await S.sb.from('beatlab_sessions').insert({owner_id:S.user.id,title,status:'LIVE'});}catch(e){}toast('BEATLAB Session started');go('#project');};
 window.bl11GraduateProject=async()=>{if(!S.user)return openAuth('login');const title=prompt('Release title:',DEMO_PROJECT.title);if(!title)return;try{if(S.sb){await S.sb.from('releases').insert({owner_id:S.user.id,title,release_type:'Single',status:'Draft'});}toast('Project graduated to a release draft · credits carried forward');blTrackEvent('project_graduated',{title});}catch(e){toast('Release draft saved locally');}};
+// v17.0.1 QA compatibility: legacy Project Room CTA used this older handler name.
+window.blGraduateProject=()=>window.bl11GraduateProject();
+
 function bl11CreditsHTML(t){const rows=BL11.credits[t.id]||[[t.owner_id,'Primary Artist'],[DEMO_ARTISTS.find(a=>a.display_name===t.producer)?.id||'u1','Producer']];return rows.map(([id,role])=>{const a=artistOf(id);return `<div class="bl-credit-node" onclick="go('#artist/${id}')"><img src="${avatarArt(a.display_name,80)}"><div class="grow"><b>${esc(a.display_name)}</b><span class="bl-sub">${esc(role)}</span></div><span>→</span></div>`}).join('');}
 
 // Home: functional signature entry points, using the existing design language only.
@@ -1682,7 +1754,7 @@ window.blInitAudienceGlobe=async function(){
       .on('pointerleave',()=>{if(tip)tip.style.opacity='0';})
       .on('click',(ev,d)=>{ev.stopPropagation();const c=BL_AUDIENCE.byId[String(parseInt(d.id,10))];if(c)blSelectAudienceCountry(c.id);});
     function redraw(){BL_AUDIENCE.rotation=projection.rotate();countries.attr('d',path).attr('fill',d=>{const c=BL_AUDIENCE.byId[String(parseInt(d.id,10))];if(!c)return 'rgba(255,255,255,.045)';if(c.id===BL_AUDIENCE.selected)return '#d6ff3f';return fillFor(d.id);}).attr('filter',d=>{const c=BL_AUDIENCE.byId[String(parseInt(d.id,10))];return c?.id===BL_AUDIENCE.selected?'url(#blGlow)':null});svg.select('.bl-ocean').attr('d',path);}
-    window.__blGlobeRedraw=redraw; redraw();
+    window.__blGlobeRedraw=redraw; window.__blGlobeSetRotation=(r)=>{projection.rotate(r);redraw();}; redraw();
     let dragStart=null,rotStart=null,moved=false;
     svg.call(d3.drag().on('start',ev=>{dragStart=[ev.x,ev.y];rotStart=projection.rotate();moved=false;}).on('drag',ev=>{if(!dragStart)return;const dx=ev.x-dragStart[0],dy=ev.y-dragStart[1];if(Math.abs(dx)+Math.abs(dy)>5)moved=true;projection.rotate([rotStart[0]+dx*.35,Math.max(-80,Math.min(80,rotStart[1]-dy*.28)),0]);redraw();}));
     svg.on('wheel',ev=>{ev.preventDefault();const next=Math.max(.78,Math.min(1.38,BL_AUDIENCE.scale+(ev.deltaY<0?.06:-.06)));BL_AUDIENCE.scale=next;projection.scale(Math.min(width,height)*.43*next);redraw();},{passive:false});
@@ -1983,104 +2055,363 @@ window.bl13Graduate=async function(projectId){const p=bl13CurrentProject(project
 </script>
 
 
-<script id="bl-v1516-input-recovery">
-(()=>{
-  const q=s=>document.querySelector(s);
-  const clearStaleLayers=(keep)=>{
-    document.querySelectorAll('.modal.open,.overlay.open,.user-menu.open,.mobile-player.open').forEach(el=>{
-      if(!keep || el.id!==keep) el.classList.remove('open');
-    });
-  };
 
-  // Cart must never coexist with a stale full-screen modal/overlay.
-  const cart=q('#cartDrawer');
-  const cartBtn=q('#navCartBtn');
-  if(cartBtn){
-    cartBtn.addEventListener('click',()=>{
-      clearStaleLayers();
-      document.querySelectorAll('.drawer.open').forEach(d=>{if(d!==cart)d.classList.remove('open')});
-      cart?.classList.add('open');
-    },true);
+
+
+
+
+
+<script id="bl-v152-checkout-runtime-fix">
+(()=>{
+  async function refreshAuthToken(){
+    if(!S.sb) throw new Error('Supabase client is not ready');
+    const {data,error}=await S.sb.auth.getSession();
+    if(error) throw error;
+    const session=data?.session;
+    if(!session?.access_token){
+      S.token=null;
+      throw new Error('AUTH_REQUIRED');
+    }
+    S.token=session.access_token;
+    S.user=session.user||S.user;
+    return session.access_token;
   }
 
-  // Critical controls get capture-phase handlers so later bubbling handlers cannot silently swallow input.
-  document.addEventListener('click',async e=>{
-    const hit=e.target.closest?.('#checkoutBtn,#btnPlay,#btnPrev,#btnNext,#btnShuffle,#btnRepeat');
-    if(!hit)return;
-    if(hit.id==='checkoutBtn'){
-      e.preventDefault(); e.stopImmediatePropagation();
-      hit.dataset.blPressed='1';
-      try{
-        if(typeof window.checkout==='function') await window.checkout();
-        else if(typeof checkout==='function') await checkout();
-        else throw new Error('checkout handler unavailable');
-      }catch(err){
-        console.error('BEATLAB checkout recovery',err);
-        if(typeof toast==='function') toast('<b>Checkout error</b> · '+String(err?.message||err));
-      }
-      return;
-    }
-    e.preventDefault(); e.stopImmediatePropagation();
+  window.beatlabCheckoutV152=async function(){
+    if(!S.cart?.length){ toast('Crate is empty'); return; }
+    const btn=document.querySelector('#checkoutBtn');
+    const old=btn?.innerHTML||'CHECKOUT';
     try{
-      if(hit.id==='btnPlay' && typeof togglePlay==='function') togglePlay();
-      if(hit.id==='btnPrev' && typeof prevTrack==='function') prevTrack();
-      if(hit.id==='btnNext' && typeof nextTrack==='function') nextTrack();
-      if(hit.id==='btnShuffle'){
-        S.shuffle=!S.shuffle; hit.classList.toggle('active',S.shuffle); persist?.();
+      if(btn){btn.disabled=true;btn.innerHTML='CONNECTING…';}
+      // Payments enabled => NEVER fall back to a fake/local purchase.
+      if(S.config?.paymentsEnabled){
+        let token;
+        try{ token=await refreshAuthToken(); }
+        catch(err){
+          if(String(err?.message||err)==='AUTH_REQUIRED'){
+            toast('<b>Sign in required</b> · sign in before opening Stripe Checkout');
+            openAuth();
+            return;
+          }
+          throw err;
+        }
+        if(btn)btn.innerHTML='OPENING STRIPE…';
+        const res=await fetch('/api/create-checkout',{
+          method:'POST',
+          headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+          body:JSON.stringify({kind:'cart',items:S.cart.map(c=>({beatId:c.beatId,license:c.license}))})
+        });
+        const raw=await res.text();
+        let data={};
+        try{data=raw?JSON.parse(raw):{}}catch(_){data={error:raw||'Invalid server response'}}
+        if(!res.ok||!data.url){
+          throw new Error(data.error||data.message||('Checkout failed (HTTP '+res.status+')'));
+        }
+        window.location.assign(data.url);
+        return;
       }
-      if(hit.id==='btnRepeat'){
-        S.repeat=!S.repeat; hit.classList.toggle('active',S.repeat); persist?.();
-      }
+      // Local demo purchase is allowed only when the server explicitly reports payments disabled.
+      const pending=S.cart.map(x=>({...x}));
+      bl13AddPurchaseFromCart(pending);
+      S.cart=[]; persist(); renderCart(); closeDrawer('cartDrawer');
+      toast(`<b>Demo purchase complete</b> · ${pending.length} item${pending.length>1?'s':''} added to Library`);
+      go('#library');
     }catch(err){
-      console.error('BEATLAB player recovery',err);
-      if(typeof toast==='function') toast('<b>Player error</b> · '+String(err?.message||err));
+      console.error('BEATLAB v15.2 checkout',err);
+      toast('<b>Checkout error</b> · '+esc(String(err?.message||err)));
+    }finally{
+      if(btn){btn.disabled=false;btn.innerHTML=old;}
     }
+  };
+
+  // One authoritative capture handler for Checkout.
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest?.('#checkoutBtn');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    window.beatlabCheckoutV152();
   },true);
-
-  // Escape is a universal recovery key for accidental/stale blockers.
-  addEventListener('keydown',e=>{
-    if(e.key==='Escape'){
-      clearStaleLayers();
-      document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
-    }
-  });
-
-  // Surface uncaught JS errors instead of failing silently.
-  addEventListener('error',e=>{
-    console.error('BEATLAB uncaught error',e.error||e.message);
-  });
-  addEventListener('unhandledrejection',e=>{
-    console.error('BEATLAB unhandled rejection',e.reason);
-  });
 })();
-</script>
+</script>\n
 
-
-
-<style id="bl-v1518-diag-style">
-#blV1518Badge{position:fixed;top:72px;right:14px;z-index:2147483647;background:#d6ff3f;color:#050708;padding:7px 9px;border-radius:6px;font:700 11px/1 monospace;pointer-events:none}
-#blV1518Event{position:fixed;top:106px;right:14px;z-index:2147483647;max-width:min(680px,calc(100vw - 28px));background:#050708;color:#d6ff3f;border:1px solid #d6ff3f;padding:8px 10px;border-radius:6px;font:11px/1.35 monospace;pointer-events:none}
-</style>
-<div id="blV1518Badge">v15.1.8 ACTIVE</div>
-<div id="blV1518Event">Waiting for input…</div>
-<script id="bl-v1518-global-input-diagnostic">
+<script id="bl-v1523-payment-success-library">
 (()=>{
- const out=document.getElementById('blV1518Event');
- const name=el=>{
-   if(!el)return 'null';
-   const id=el.id?'#'+el.id:'';
-   const cls=(typeof el.className==='string'&&el.className.trim())?'.'+el.className.trim().replace(/\s+/g,'.'):'';
-   return el.tagName+id+cls;
- };
- const report=(kind,e)=>{
-   const top=document.elementFromPoint(e.clientX,e.clientY);
-   out.textContent=kind+' x='+Math.round(e.clientX)+' y='+Math.round(e.clientY)+' | target='+name(e.target)+' | top='+name(top);
- };
- window.addEventListener('pointerdown',e=>report('POINTER',e),true);
- window.addEventListener('click',e=>report('CLICK',e),true);
- window.addEventListener('error',e=>{out.textContent='JS ERROR: '+e.message},true);
- window.addEventListener('unhandledrejection',e=>{out.textContent='PROMISE ERROR: '+String(e.reason?.message||e.reason)},true);
+  const params=new URLSearchParams(window.location.search);
+  const isCartSuccess=params.get('payment')==='success' && !!params.get('session_id');
+  if(!isCartSuccess)return;
+
+  async function finishPaidCheckout(){
+    try{
+      // Stripe has returned from a successful cart Checkout.
+      S.cart=[];
+      persist();
+      try{ renderCart(); }catch(_){}
+      try{ closeDrawer('cartDrawer'); }catch(_){}
+
+      // Give Supabase auth restoration a moment, then force a fresh cloud Library load.
+      for(let i=0;i<20 && (!S.user || !S.token);i++){
+        try{
+          if(S.sb){
+            const {data}=await S.sb.auth.getSession();
+            if(data?.session?.access_token){
+              S.token=data.session.access_token;
+              S.user=data.session.user||S.user;
+              break;
+            }
+          }
+        }catch(_){}
+        await new Promise(r=>setTimeout(r,150));
+      }
+
+      if(typeof BL13!=='undefined') BL13.loadedCloudLibrary=false;
+
+      // Remove Stripe query data from the address and land directly in Library.
+      history.replaceState({},'',window.location.pathname+'#library');
+      try{ route(); }catch(_){ window.location.hash='#library'; }
+
+      if(typeof bl13LoadCloudLibrary==='function'){
+        try{ await bl13LoadCloudLibrary(); }catch(_){}
+      }
+      try{ route(); }catch(_){}
+
+      toast('<b>PURCHASE COMPLETE</b> · your beats are now in Library');
+    }catch(err){
+      console.error('BEATLAB payment return',err);
+      history.replaceState({},'',window.location.pathname+'#library');
+      window.location.hash='#library';
+    }
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(finishPaidCheckout,0),{once:true});
+  }else{
+    setTimeout(finishPaidCheckout,0);
+  }
 })();
 </script>
+
+
+<script id="beatlab-v16-connected-product-core">
+/* v16 Connected Product Core — behavior/data only; Kimi visual baseline untouched. */
+async function bl16LoadProject(p){
+  if(!p?.cloudId||!S.sb||!S.user)return p;
+  try{
+    const [room,tasks,files,splits,members]=await Promise.all([
+      S.sb.from('project_rooms').select('id,status,release_readiness').eq('id',p.cloudId).single(),
+      S.sb.from('project_tasks').select('id,title,status,creator_id,assignee_id,created_at').eq('project_room_id',p.cloudId).order('created_at'),
+      S.sb.from('project_files').select('id,name,file_url,file_size,mime_type,created_at').eq('project_room_id',p.cloudId).order('created_at',{ascending:false}),
+      S.sb.from('project_splits').select('user_id,percentage,role,confirmed,updated_at').eq('project_room_id',p.cloudId),
+      S.sb.from('project_members').select('user_id,role,joined_at').eq('project_room_id',p.cloudId)
+    ]);
+    for(const r of [room,tasks,files,splits,members]) if(r.error) throw r.error;
+    p.status=room.data?.status||p.status;
+    p.readiness=Number(room.data?.release_readiness??p.readiness??0);
+    p.tasks=(tasks.data||[]).map(t=>({id:t.id,title:t.title,done:t.status==='done',cloud:true}));
+    p.files=(files.data||[]).map(f=>({id:f.id,name:f.name,url:f.file_url,size:f.file_size,mime:f.mime_type,cloud:true}));
+    p.splits=(splits.data||[]).map(s=>({userId:s.user_id,percentage:Number(s.percentage),role:s.role,confirmed:s.confirmed,cloud:true}));
+    p.members=(members.data||[]).map(m=>m.user_id);
+    bl13Save(); return p;
+  }catch(e){console.warn('v16 project load',e);toast('<b>Cloud sync failed</b> · '+esc(e.message||'Unknown error'));return p}
+}
+const _bl13ProjectView16=bl13ProjectView;
+bl13ProjectView=function(id){
+  const p=bl13CurrentProject(id);
+  /* Load cloud state once per room entry. The previous v16 code called route()
+     after every load, which rendered again and immediately scheduled another
+     load: an endless render/sync loop that made the Project Room feel frozen. */
+  if(p?.cloudId&&!p._v16loaded&&!p._v16loading){
+    p._v16loading=true;
+    setTimeout(async()=>{
+      await bl16LoadProject(p);
+      p._v16loading=false;
+      p._v16loaded=true;
+      if(location.hash==='#project/'+p.id)route();
+    },0);
+  }
+  return _bl13ProjectView16(id);
+};
+window.bl13AddProjectTask=async function(projectId){
+  const p=bl13CurrentProject(projectId);if(!p)return;
+  const title=prompt('Task name');if(!title)return;
+  if(p.cloudId&&S.sb&&S.user){try{
+    const {error}=await S.sb.from('project_tasks').insert({project_room_id:p.cloudId,creator_id:S.user.id,assignee_id:S.user.id,title:String(title).trim().slice(0,180),status:'open'});
+    if(error)throw error;await bl16LoadProject(p);toast('<b>Task saved</b> · Project Room synced');route();return
+  }catch(e){toast('<b>Task failed</b> · '+esc(e.message||'Unknown error'));return}}
+  p.tasks=p.tasks||[];p.tasks.push({id:bl13Id('task'),title,done:false});bl13Save();route();
+};
+window.bl13ToggleTask=async function(projectId,taskId){
+  const p=bl13CurrentProject(projectId);const t=p?.tasks?.find(x=>x.id===taskId);if(!t)return;
+  if(p.cloudId&&S.sb&&S.user&&t.cloud){try{
+    const {error}=await S.sb.from('project_tasks').update({status:t.done?'open':'done'}).eq('id',taskId).eq('project_room_id',p.cloudId);
+    if(error)throw error;await bl16LoadProject(p);route();return
+  }catch(e){toast('<b>Task update failed</b> · '+esc(e.message||'Unknown error'));return}}
+  t.done=!t.done;p.readiness=Math.min(96,Math.max(12,(p.readiness||20)+(t.done?12:-12)));bl13Save();route();
+};
+
+window.bl16UploadProjectFile=async function(projectId){
+  const p=bl13CurrentProject(projectId);
+  if(!p?.cloudId)return toast('Cloud Project Room required');
+  if(!S.sb||!S.user)return toast('Sign in required');
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='audio/*,.wav,.mp3,.aiff,.flac,.m4a,.zip,.pdf,.txt,.doc,.docx,image/*';
+  input.onchange=async()=>{
+    const f=input.files?.[0]; if(!f)return;
+    if(f.size>100*1024*1024)return toast('<b>File too large</b> · maximum 100 MB');
+    const safe=f.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-140);
+    const path=`${S.user.id}/${p.cloudId}/${Date.now()}-${safe}`;
+    try{
+      toast('<b>Uploading</b> · '+esc(f.name));
+      const up=await S.sb.storage.from('project-files').upload(path,f,{upsert:false,contentType:f.type||undefined});
+      if(up.error)throw up.error;
+      const row=await S.sb.from('project_files').insert({
+        project_room_id:p.cloudId,uploader_id:S.user.id,name:f.name,
+        file_url:path,file_size:f.size,mime_type:f.type||'application/octet-stream'
+      }).select('id,name,file_url,file_size,mime_type,created_at').single();
+      if(row.error){
+        await S.sb.storage.from('project-files').remove([path]);
+        throw row.error;
+      }
+      await bl16LoadProject(p);
+      toast('<b>File uploaded</b> · private Project Room storage');
+      route();
+    }catch(e){toast('<b>Upload failed</b> · '+esc(e.message||'Unknown error'))}
+  };
+  input.click();
+};
+window.bl16OpenProjectFile=async function(projectId,fileId){
+  const p=bl13CurrentProject(projectId),f=p?.files?.find(x=>x.id===fileId);
+  if(!p?.cloudId||!f?.url||!S.sb)return toast('File unavailable');
+  try{
+    const {data,error}=await S.sb.storage.from('project-files').createSignedUrl(f.url,60);
+    if(error)throw error;
+    if(!data?.signedUrl)throw new Error('Signed URL unavailable');
+    window.open(data.signedUrl,'_blank','noopener,noreferrer');
+  }catch(e){toast('<b>Open file failed</b> · '+esc(e.message||'Unknown error'))}
+};
+
+window.bl16SaveMySplit=async function(projectId){
+  const p=bl13CurrentProject(projectId);if(!p?.cloudId)return toast('Cloud Project Room required');
+  const raw=prompt('Your split percentage (0–100)');if(raw===null)return;const percentage=Number(raw);
+  if(!Number.isFinite(percentage)||percentage<0||percentage>100)return toast('Enter a number between 0 and 100');
+  try{
+    if(!S.sb||!S.user)throw new Error('Sign in required');
+    const {error}=await S.sb.from('project_splits').upsert({project_room_id:p.cloudId,user_id:S.user.id,percentage,role:'owner',confirmed:true,updated_at:new Date().toISOString()},{onConflict:'project_room_id,user_id'});
+    if(error)throw error;await bl16LoadProject(p);toast('<b>Split saved</b> · '+percentage+'%');route()
+  }catch(e){toast('<b>Split failed</b> · '+esc(e.message||'Unknown error'))}
+};
+const _projectView16=bl13ProjectView;
+bl13ProjectView=function(id){
+  let base=_projectView16(id),p=bl13CurrentProject(id);if(!p)return base;
+  const fileRows=(p.files||[]).map(f=>`<div class="bl12-row"><div><b>${esc(f.name||'Untitled file')}</b><div class="mono" style="color:var(--ink-dim)">${f.size?((Number(f.size)/1048576).toFixed(1)+' MB'):'FILE'} · ${esc(f.mime||'private')}</div></div><span class="sp"></span>${f.cloud?`<button class="btn btn-ghost btn-sm" onclick="bl16OpenProjectFile('${p.id}','${f.id}')">OPEN</button>`:''}</div>`).join('');
+  const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="(()=>{const q=bl13CurrentProject('${p.id}');q._v16loading=true;bl16LoadProject(q).then(()=>{q._v16loading=false;q._v16loaded=true;route()})})()">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>
+  <section class="section"><div class="panel"><div class="sec-head"><div><div class="kicker">PRIVATE STORAGE</div><h2 class="sec-title" style="font-size:28px">PROJECT <em>FILES</em></h2><p class="sec-sub">Files are private to this Project Room and loaded from Supabase.</p></div>${p.cloudId?`<button class="btn btn-acid btn-sm" onclick="bl16UploadProjectFile('${p.id}')">+ FILE</button>`:''}</div>${fileRows||'<div class="bl13-empty">No project files yet.</div>'}</div></section>`;
+  return base.replace(footerHTML(),cloud+footerHTML());
+};
+</script>
+
+
+<script id="beatlab-v17-functional-core">
+/* v17 functional core: cloud marketplace + creator upload + analytics + globe motion. Visual baseline intentionally preserved. */
+window.BL17=window.BL17||{cloudBeatsLoaded:false,studioLoaded:false,globeLocked:false,globeResumeTimer:null};
+
+window.bl17LoadCloudBeats=async function(force=false){
+  if(!S.sb||(!force&&BL17.cloudBeatsLoaded))return;
+  try{
+    const {data,error}=await S.sb.from('beats').select('id,owner_id,client_id,title,producer_name,genre,bpm,music_key,audio_url,cover_url,license_prices,exclusive_sold,active,created_at').eq('active',true).order('created_at',{ascending:false}).limit(250);
+    if(error)throw error;
+    for(const x of data||[]){
+      const cid=String(x.client_id||x.id), id=cid.startsWith('b')?cid:'b'+cid;
+      const row={id,uuid:x.id,client_id:cid,owner_id:x.owner_id,title:x.title,producer:x.producer_name,bpm:x.bpm||120,key:x.music_key||'—',genre:x.genre||'Other',audio_url:x.audio_url||'',cover_url:x.cover_url||'',exclusive_sold:!!x.exclusive_sold,active:x.active!==false,license_prices:x.license_prices||{Basic:19.99}};
+      const i=DEMO_BEATS.findIndex(b=>b.uuid===x.id||String(b.client_id)===cid||b.id===id);
+      if(i>=0)DEMO_BEATS[i]=Object.assign(DEMO_BEATS[i],row);else DEMO_BEATS.unshift(row);
+    }
+    BL17.cloudBeatsLoaded=true;
+  }catch(e){console.warn('cloud marketplace',e);toast('<b>Marketplace sync failed</b> · '+esc(e.message||e))}
+};
+
+const _market17=VIEWS.market;
+VIEWS.market=()=>{if(S.sb&&!BL17.cloudBeatsLoaded)setTimeout(async()=>{await bl17LoadCloudBeats();if(location.hash.startsWith('#market'))route()},0);return _market17();};
+
+const _publish17=window.blPublishUpload;
+window.blPublishUpload=async function(mode){
+  if(mode!=='beat')return _publish17(mode);
+  if(!S.user||!S.sb){openAuth();return}
+  const title=$('#upTitle')?.value.trim(),genre=$('#upGenre')?.value.trim(),bpm=Number($('#upBpm')?.value||0),key=$('#upKey')?.value.trim(),audio=$('#upAudio')?.files?.[0],cover=$('#upCover')?.files?.[0],status=$('#upStatus');
+  if(!title||!genre)return toast('Title + genre required');
+  if(!audio)return toast('Choose an audio file');
+  const prices={Basic:Number($('#upBasic')?.value),Premium:Number($('#upPremium')?.value),Unlimited:Number($('#upUnlimited')?.value),Exclusive:Number($('#upExclusive')?.value)};
+  if(Object.values(prices).some(v=>!Number.isFinite(v)||v<0))return toast('Check license prices');
+  const cid='b'+Date.now(),safe=n=>n.replace(/[^a-zA-Z0-9._-]/g,'_');
+  let ap='',cp='';
+  try{
+    if(status)status.textContent='Uploading audio…';
+    ap=`${S.user.id}/${cid}/${Date.now()}-${safe(audio.name)}`;
+    let r=await S.sb.storage.from('audio').upload(ap,audio,{upsert:false,contentType:audio.type||undefined});if(r.error)throw r.error;
+    const audioUrl=S.sb.storage.from('audio').getPublicUrl(ap).data.publicUrl;
+    let coverUrl='';
+    if(cover){if(status)status.textContent='Uploading cover…';cp=`${S.user.id}/${cid}/${Date.now()}-${safe(cover.name)}`;r=await S.sb.storage.from('covers').upload(cp,cover,{upsert:false,contentType:cover.type||undefined});if(r.error)throw r.error;coverUrl=S.sb.storage.from('covers').getPublicUrl(cp).data.publicUrl}
+    if(status)status.textContent='Publishing beat…';
+    const body=await bl15Api('/api/publish-beat',{method:'POST',body:JSON.stringify({clientId:cid,title,producerName:S.user.name||'Creator',genre,bpm:bpm||null,musicKey:key,audioUrl,coverUrl,licensePrices:prices,active:true})});
+    if(!body.beat)throw new Error('Beat publish returned no beat');
+    BL17.cloudBeatsLoaded=false;await bl17LoadCloudBeats(true);
+    closeModal('licenseModal');toast('<b>Beat published</b> · now live in Marketplace');go('#market');
+  }catch(e){
+    if(ap)try{await S.sb.storage.from('audio').remove([ap])}catch(_){}
+    if(cp)try{await S.sb.storage.from('covers').remove([cp])}catch(_){}
+    if(status)status.textContent='Publish failed: '+(e.message||e);
+    toast('<b>Beat publish failed</b> · '+esc(e.message||e));
+  }
+};
+
+window.bl17LoadStudio=async function(){
+  if(!S.user||!S.token)return;
+  const map={ '7D':7,'28D':28,'90D':90,'1Y':365 };
+  try{
+    const d=await bl15Api('/api/creator-dashboard?days='+(map[S.studioRange]||28));
+    BL17.studio=d;BL17.studioLoaded=true;
+    if(Array.isArray(d.geo)&&d.geo.length){
+      const names={RO:'642',DE:'276',GB:'826',FR:'250',US:'840',IT:'380',ES:'724',NL:'528',CA:'124',PL:'616',BR:'076',JP:'392',AU:'036'};
+      for(const g of d.geo){const id=names[String(g.code||'').toUpperCase()];if(!id)continue;let c=BL_AUDIENCE.countries.find(x=>x.id===id);if(!c)continue;c.streams=Number(g.streams||0);c.cities=(g.cities||[]).map(x=>[x.name,Number(x.streams||0)]);}
+      BL_AUDIENCE.total=Math.max(1,BL_AUDIENCE.countries.reduce((a,c)=>a+c.streams,0));
+      if(window.__blGlobeRedraw)window.__blGlobeRedraw();
+      const c=BL_AUDIENCE.countries.find(c=>c.id===BL_AUDIENCE.selected);if(c)blAudienceCountryPanel(c,false);
+    }
+  }catch(e){console.warn('creator dashboard',e)}
+};
+const _studio17=VIEWS.studio;
+VIEWS.studio=()=>{if(S.user&&S.token)setTimeout(()=>bl17LoadStudio(),0);return _studio17();};
+
+/* Requested globe behavior: slow ambient rotation; selection locks; deselection resumes; drag pauses then resumes. */
+const _selectCountry17=window.blSelectAudienceCountry;
+window.blSelectAudienceCountry=function(id){
+  const norm=String(parseInt(id,10)),c=BL_AUDIENCE.byId[norm];if(!c)return;
+  if(BL17.globeLocked&&BL_AUDIENCE.selected===c.id){BL17.globeLocked=false;BL_AUDIENCE.all=false;blAudienceCountryPanel(c,false)}
+  else{BL17.globeLocked=true;_selectCountry17(id)}
+};
+const _initGlobe17=window.blInitAudienceGlobe;
+window.blInitAudienceGlobe=async function(){
+  await _initGlobe17();
+  const svg=document.getElementById('blAudienceGlobe');if(!svg||svg.dataset.autoRotate==='1')return;svg.dataset.autoRotate='1';
+  let last=performance.now(),dragging=false,lastInteract=0;
+  svg.addEventListener('pointerdown',()=>{dragging=true;lastInteract=performance.now()},{passive:true});
+  window.addEventListener('pointerup',()=>{if(dragging){dragging=false;lastInteract=performance.now()}},{passive:true});
+  svg.addEventListener('wheel',()=>{lastInteract=performance.now()},{passive:true});
+  svg.addEventListener('click',e=>{if(e.target===svg){BL17.globeLocked=false;BL_AUDIENCE.all=false;}},{passive:true});
+  const tick=now=>{
+    if(!document.body.contains(svg))return;
+    const dt=Math.min(50,now-last);last=now;
+    if(!BL17.globeLocked&&!dragging&&now-lastInteract>1800&&window.__blGlobeRedraw){
+      BL_AUDIENCE.rotation[0]=(BL_AUDIENCE.rotation[0]+dt*0.0022)%360;
+      window.__blGlobeSetRotation?.(BL_AUDIENCE.rotation);
+      window.__blGlobeRedraw();
+    }
+    requestAnimationFrame(tick);
+  };requestAnimationFrame(tick);
+};
+</script>
+
+<!-- BEATLAB v16.0.4 PROJECT FILES FULL DEPLOY -->
 </body>
 </html>
