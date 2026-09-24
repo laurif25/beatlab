@@ -1751,7 +1751,7 @@ window.blInitAudienceGlobe=async function(){
       .on('pointerleave',()=>{if(tip)tip.style.opacity='0';})
       .on('click',(ev,d)=>{ev.stopPropagation();const c=BL_AUDIENCE.byId[String(parseInt(d.id,10))];if(c)blSelectAudienceCountry(c.id);});
     function redraw(){BL_AUDIENCE.rotation=projection.rotate();countries.attr('d',path).attr('fill',d=>{const c=BL_AUDIENCE.byId[String(parseInt(d.id,10))];if(!c)return 'rgba(255,255,255,.045)';if(c.id===BL_AUDIENCE.selected)return '#d6ff3f';return fillFor(d.id);}).attr('filter',d=>{const c=BL_AUDIENCE.byId[String(parseInt(d.id,10))];return c?.id===BL_AUDIENCE.selected?'url(#blGlow)':null});svg.select('.bl-ocean').attr('d',path);}
-    window.__blGlobeRedraw=redraw; redraw();
+    window.__blGlobeRedraw=redraw; window.__blGlobeSetRotation=(r)=>{projection.rotate(r);redraw();}; redraw();
     let dragStart=null,rotStart=null,moved=false;
     svg.call(d3.drag().on('start',ev=>{dragStart=[ev.x,ev.y];rotStart=projection.rotate();moved=false;}).on('drag',ev=>{if(!dragStart)return;const dx=ev.x-dragStart[0],dy=ev.y-dragStart[1];if(Math.abs(dx)+Math.abs(dy)>5)moved=true;projection.rotate([rotStart[0]+dx*.35,Math.max(-80,Math.min(80,rotStart[1]-dy*.28)),0]);redraw();}));
     svg.on('wheel',ev=>{ev.preventDefault();const next=Math.max(.78,Math.min(1.38,BL_AUDIENCE.scale+(ev.deltaY<0?.06:-.06)));BL_AUDIENCE.scale=next;projection.scale(Math.min(width,height)*.43*next);redraw();},{passive:false});
@@ -2305,6 +2305,107 @@ bl13ProjectView=function(id){
   const cloud=`<section class="section"><div class="bl12-two"><div class="panel"><h4>CLOUD PROJECT</h4><p class="sec-sub">${p.cloudId?'Connected to Supabase · tasks, members, files and splits persist across devices.':'Local demo project'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="(()=>{const q=bl13CurrentProject('${p.id}');q._v16loading=true;bl16LoadProject(q).then(()=>{q._v16loading=false;q._v16loaded=true;route()})})()">SYNC ROOM</button>`:''}</div><div class="panel"><h4>MY SPLIT</h4><p class="sec-sub">${(p.splits||[]).find(s=>s.userId===S.user?.id)?.percentage??'—'}% · ${(p.splits||[]).find(s=>s.userId===S.user?.id)?.confirmed?'CONFIRMED':'NOT CONFIRMED'}</p>${p.cloudId?`<button class="btn btn-ghost btn-sm" onclick="bl16SaveMySplit('${p.id}')">SET / CONFIRM SPLIT</button>`:''}</div></div></section>
   <section class="section"><div class="panel"><div class="sec-head"><div><div class="kicker">PRIVATE STORAGE</div><h2 class="sec-title" style="font-size:28px">PROJECT <em>FILES</em></h2><p class="sec-sub">Files are private to this Project Room and loaded from Supabase.</p></div>${p.cloudId?`<button class="btn btn-acid btn-sm" onclick="bl16UploadProjectFile('${p.id}')">+ FILE</button>`:''}</div>${fileRows||'<div class="bl13-empty">No project files yet.</div>'}</div></section>`;
   return base.replace(footerHTML(),cloud+footerHTML());
+};
+</script>
+
+
+<script id="beatlab-v17-functional-core">
+/* v17 functional core: cloud marketplace + creator upload + analytics + globe motion. Visual baseline intentionally preserved. */
+window.BL17=window.BL17||{cloudBeatsLoaded:false,studioLoaded:false,globeLocked:false,globeResumeTimer:null};
+
+window.bl17LoadCloudBeats=async function(force=false){
+  if(!S.sb||(!force&&BL17.cloudBeatsLoaded))return;
+  try{
+    const {data,error}=await S.sb.from('beats').select('id,owner_id,client_id,title,producer_name,genre,bpm,music_key,audio_url,cover_url,license_prices,exclusive_sold,active,created_at').eq('active',true).order('created_at',{ascending:false}).limit(250);
+    if(error)throw error;
+    for(const x of data||[]){
+      const cid=String(x.client_id||x.id), id=cid.startsWith('b')?cid:'b'+cid;
+      const row={id,uuid:x.id,client_id:cid,owner_id:x.owner_id,title:x.title,producer:x.producer_name,bpm:x.bpm||120,key:x.music_key||'—',genre:x.genre||'Other',audio_url:x.audio_url||'',cover_url:x.cover_url||'',exclusive_sold:!!x.exclusive_sold,active:x.active!==false,license_prices:x.license_prices||{Basic:19.99}};
+      const i=DEMO_BEATS.findIndex(b=>b.uuid===x.id||String(b.client_id)===cid||b.id===id);
+      if(i>=0)DEMO_BEATS[i]=Object.assign(DEMO_BEATS[i],row);else DEMO_BEATS.unshift(row);
+    }
+    BL17.cloudBeatsLoaded=true;
+  }catch(e){console.warn('cloud marketplace',e);toast('<b>Marketplace sync failed</b> · '+esc(e.message||e))}
+};
+
+const _market17=VIEWS.market;
+VIEWS.market=()=>{if(S.sb&&!BL17.cloudBeatsLoaded)setTimeout(async()=>{await bl17LoadCloudBeats();if(location.hash.startsWith('#market'))route()},0);return _market17();};
+
+const _publish17=window.blPublishUpload;
+window.blPublishUpload=async function(mode){
+  if(mode!=='beat')return _publish17(mode);
+  if(!S.user||!S.sb){openAuth();return}
+  const title=$('#upTitle')?.value.trim(),genre=$('#upGenre')?.value.trim(),bpm=Number($('#upBpm')?.value||0),key=$('#upKey')?.value.trim(),audio=$('#upAudio')?.files?.[0],cover=$('#upCover')?.files?.[0],status=$('#upStatus');
+  if(!title||!genre)return toast('Title + genre required');
+  if(!audio)return toast('Choose an audio file');
+  const prices={Basic:Number($('#upBasic')?.value),Premium:Number($('#upPremium')?.value),Unlimited:Number($('#upUnlimited')?.value),Exclusive:Number($('#upExclusive')?.value)};
+  if(Object.values(prices).some(v=>!Number.isFinite(v)||v<0))return toast('Check license prices');
+  const cid='b'+Date.now(),safe=n=>n.replace(/[^a-zA-Z0-9._-]/g,'_');
+  let ap='',cp='';
+  try{
+    if(status)status.textContent='Uploading audio…';
+    ap=`${S.user.id}/${cid}/${Date.now()}-${safe(audio.name)}`;
+    let r=await S.sb.storage.from('audio').upload(ap,audio,{upsert:false,contentType:audio.type||undefined});if(r.error)throw r.error;
+    const audioUrl=S.sb.storage.from('audio').getPublicUrl(ap).data.publicUrl;
+    let coverUrl='';
+    if(cover){if(status)status.textContent='Uploading cover…';cp=`${S.user.id}/${cid}/${Date.now()}-${safe(cover.name)}`;r=await S.sb.storage.from('covers').upload(cp,cover,{upsert:false,contentType:cover.type||undefined});if(r.error)throw r.error;coverUrl=S.sb.storage.from('covers').getPublicUrl(cp).data.publicUrl}
+    if(status)status.textContent='Publishing beat…';
+    const body=await bl15Api('/api/publish-beat',{method:'POST',body:JSON.stringify({clientId:cid,title,producerName:S.user.name||'Creator',genre,bpm:bpm||null,musicKey:key,audioUrl,coverUrl,licensePrices:prices,active:true})});
+    if(!body.beat)throw new Error('Beat publish returned no beat');
+    BL17.cloudBeatsLoaded=false;await bl17LoadCloudBeats(true);
+    closeModal('licenseModal');toast('<b>Beat published</b> · now live in Marketplace');go('#market');
+  }catch(e){
+    if(ap)try{await S.sb.storage.from('audio').remove([ap])}catch(_){}
+    if(cp)try{await S.sb.storage.from('covers').remove([cp])}catch(_){}
+    if(status)status.textContent='Publish failed: '+(e.message||e);
+    toast('<b>Beat publish failed</b> · '+esc(e.message||e));
+  }
+};
+
+window.bl17LoadStudio=async function(){
+  if(!S.user||!S.token)return;
+  const map={ '7D':7,'28D':28,'90D':90,'1Y':365 };
+  try{
+    const d=await bl15Api('/api/creator-dashboard?days='+(map[S.studioRange]||28));
+    BL17.studio=d;BL17.studioLoaded=true;
+    if(Array.isArray(d.geo)&&d.geo.length){
+      const names={RO:'642',DE:'276',GB:'826',FR:'250',US:'840',IT:'380',ES:'724',NL:'528',CA:'124',PL:'616',BR:'076',JP:'392',AU:'036'};
+      for(const g of d.geo){const id=names[String(g.code||'').toUpperCase()];if(!id)continue;let c=BL_AUDIENCE.countries.find(x=>x.id===id);if(!c)continue;c.streams=Number(g.streams||0);c.cities=(g.cities||[]).map(x=>[x.name,Number(x.streams||0)]);}
+      BL_AUDIENCE.total=Math.max(1,BL_AUDIENCE.countries.reduce((a,c)=>a+c.streams,0));
+      if(window.__blGlobeRedraw)window.__blGlobeRedraw();
+      const c=BL_AUDIENCE.countries.find(c=>c.id===BL_AUDIENCE.selected);if(c)blAudienceCountryPanel(c,false);
+    }
+  }catch(e){console.warn('creator dashboard',e)}
+};
+const _studio17=VIEWS.studio;
+VIEWS.studio=()=>{if(S.user&&S.token)setTimeout(()=>bl17LoadStudio(),0);return _studio17();};
+
+/* Requested globe behavior: slow ambient rotation; selection locks; deselection resumes; drag pauses then resumes. */
+const _selectCountry17=window.blSelectAudienceCountry;
+window.blSelectAudienceCountry=function(id){
+  const norm=String(parseInt(id,10)),c=BL_AUDIENCE.byId[norm];if(!c)return;
+  if(BL17.globeLocked&&BL_AUDIENCE.selected===c.id){BL17.globeLocked=false;BL_AUDIENCE.all=false;blAudienceCountryPanel(c,false)}
+  else{BL17.globeLocked=true;_selectCountry17(id)}
+};
+const _initGlobe17=window.blInitAudienceGlobe;
+window.blInitAudienceGlobe=async function(){
+  await _initGlobe17();
+  const svg=document.getElementById('blAudienceGlobe');if(!svg||svg.dataset.autoRotate==='1')return;svg.dataset.autoRotate='1';
+  let last=performance.now(),dragging=false,lastInteract=0;
+  svg.addEventListener('pointerdown',()=>{dragging=true;lastInteract=performance.now()},{passive:true});
+  window.addEventListener('pointerup',()=>{if(dragging){dragging=false;lastInteract=performance.now()}},{passive:true});
+  svg.addEventListener('wheel',()=>{lastInteract=performance.now()},{passive:true});
+  svg.addEventListener('click',e=>{if(e.target===svg){BL17.globeLocked=false;BL_AUDIENCE.all=false;}},{passive:true});
+  const tick=now=>{
+    if(!document.body.contains(svg))return;
+    const dt=Math.min(50,now-last);last=now;
+    if(!BL17.globeLocked&&!dragging&&now-lastInteract>1800&&window.__blGlobeRedraw){
+      BL_AUDIENCE.rotation[0]=(BL_AUDIENCE.rotation[0]+dt*0.0022)%360;
+      window.__blGlobeSetRotation?.(BL_AUDIENCE.rotation);
+      window.__blGlobeRedraw();
+    }
+    requestAnimationFrame(tick);
+  };requestAnimationFrame(tick);
 };
 </script>
 
