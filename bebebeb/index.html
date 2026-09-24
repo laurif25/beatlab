@@ -884,14 +884,75 @@ VIEWS.market = () => `<div class="page">
   <section class="section" style="margin-top:16px">
     <div class="sec-head"><div><div class="kicker">MARKETPLACE</div><h2 class="sec-title">THE <em>CRATE</em></h2>
       <p class="sec-sub">Instant delivery · tracked stems · exclusive plates removed from sale forever. Every license is a real contract.</p></div></div>
+    <div style="display:flex;gap:10px;align-items:center;margin:0 0 14px">
+      <input id="marketSearch" class="input" type="search" autocomplete="off"
+        placeholder="SEARCH BEATS · TITLE · PRODUCER · GENRE · BPM · KEY"
+        oninput="marketSearch(this.value)"
+        style="width:100%;max-width:720px">
+      <button class="btn" type="button" onclick="marketClearSearch()">CLEAR</button>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px">
-      <button class="chip-btn active">ALL</button>${[...new Set(DEMO_BEATS.map(b=>b.genre))].map(g=>`<button class="chip-btn" onclick="filterBeats(this,'${g}')">${g.toUpperCase()}</button>`).join('')}
+      <button class="chip-btn active" onclick="filterBeats(this,'ALL')">ALL</button>${[...new Set(DEMO_BEATS.map(b=>b.genre))].map(g=>`<button class="chip-btn" onclick="filterBeats(this,'${g}')">${g.toUpperCase()}</button>`).join('')}
       <button class="chip-btn" onclick="filterBeats(this,'__EXCLUSIVE')">EXCLUSIVES</button>
       <button class="chip-btn" onclick="filterBeats(this,'__FREE')">FREE</button></div>
+    <div id="marketSearchStatus" style="font:9px var(--font-m);letter-spacing:.08em;color:var(--ink-dim);margin:-8px 0 14px"></div>
     <div class="beat-grid" id="beatGrid">${DEMO_BEATS.map(beatCard).join('')}</div>
   </section>${footerHTML()}</div>`;
-window.filterBeats = (btn,f)=>{ $$('.chip-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  $('#beatGrid').innerHTML = DEMO_BEATS.filter(b=> f==='ALL'||b.genre===f || (f==='__EXCLUSIVE'&&b.license_prices.Exclusive>=200) || (f==='__FREE'&&b.license_prices.Basic===0)).map(beatCard).join(''); bindWaves(); };
+
+window.BL_MARKET = window.BL_MARKET || {filter:'ALL', query:''};
+
+window.renderMarketBeats = () => {
+  const state = window.BL_MARKET || {filter:'ALL',query:''};
+  const q = String(state.query || '').trim().toLowerCase();
+  const filtered = DEMO_BEATS.filter(b => {
+    const f = state.filter || 'ALL';
+    const filterOK = f==='ALL' || b.genre===f ||
+      (f==='__EXCLUSIVE' && Number(b.license_prices?.Exclusive||0)>=200) ||
+      (f==='__FREE' && Number(b.license_prices?.Basic||0)===0);
+    if(!filterOK) return false;
+    if(!q) return true;
+    const haystack = [
+      b.title, b.producer, b.genre, b.bpm, b.key,
+      b.license_prices?.Basic, b.license_prices?.Premium,
+      b.license_prices?.Unlimited, b.license_prices?.Exclusive
+    ].filter(v=>v!==undefined && v!==null).join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+  const grid = $('#beatGrid');
+  if(!grid) return;
+  grid.innerHTML = filtered.length
+    ? filtered.map(beatCard).join('')
+    : `<div style="grid-column:1/-1;border:1px solid var(--line);border-radius:18px;padding:28px;text-align:center">
+         <div class="kicker">NO MATCHES</div>
+         <div style="font-family:var(--font-d);font-size:28px;margin-top:6px">NO BEATS FOUND</div>
+         <div style="color:var(--ink-dim);margin-top:8px">Try another title, producer, genre, BPM or key.</div>
+       </div>`;
+  const status = $('#marketSearchStatus');
+  if(status) status.textContent = q ? `${filtered.length} RESULT${filtered.length===1?'':'S'} FOR “${state.query.trim()}”` : '';
+  bindWaves();
+};
+
+window.filterBeats = (btn,f)=>{
+  window.BL_MARKET = window.BL_MARKET || {};
+  window.BL_MARKET.filter = f;
+  $$('.chip-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderMarketBeats();
+};
+
+window.marketSearch = (value)=>{
+  window.BL_MARKET = window.BL_MARKET || {};
+  window.BL_MARKET.query = String(value || '');
+  renderMarketBeats();
+};
+
+window.marketClearSearch = ()=>{
+  window.BL_MARKET = {filter:'ALL',query:''};
+  const input = $('#marketSearch');
+  if(input) input.value = '';
+  $$('.chip-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  renderMarketBeats();
+};
 
 VIEWS.track = (id) => { const t=byId(DEMO_TRACKS,id); if(!t) return VIEWS.home();
   const a=artistOf(t.owner_id);
@@ -2202,55 +2263,6 @@ bl13ProjectView=function(id){
 };
 </script>
 
-<script id="beatlab-v161-real-creator-marketplace">
-window.BL161={loaded:false,loading:null,real:[]};
-function bl161NormalizeBeat(b){const p=b.license_prices||{},basic=Number(p.Basic??0);return{id:String(b.client_id||b.id),uuid:b.id,title:b.title||'UNTITLED',producer:b.producer_name||'CREATOR',genre:b.genre||'other',bpm:Number(b.bpm||0)||null,key:b.music_key||'—',price:basic,prices:{Basic:Number(p.Basic??basic),Premium:Number(p.Premium??39.99),Unlimited:Number(p.Unlimited??79.99),Exclusive:Number(p.Exclusive??199.99)},audio:b.audio_url||'',cover:b.cover_url||'',ownerId:b.owner_id||null,active:b.active!==false,real:true,createdAt:b.created_at};}
-function bl161Merge(){if(typeof DEMO_BEATS==='undefined'||!Array.isArray(DEMO_BEATS)||!BL161.real.length)return;const m=new Map(DEMO_BEATS.map(x=>[String(x.id),x]));for(const b of BL161.real)m.set(String(b.id),{...(m.get(String(b.id))||{}),...b});DEMO_BEATS.splice(0,DEMO_BEATS.length,...m.values());}
-async function bl161LoadMarketplace(force=false){
-  if(BL161.loaded&&!force)return BL161.real;
-  if(BL161.loading)return BL161.loading;
-  BL161.loading=(async()=>{
-    try{
-      let rows=null, primaryError=null;
-      try{
-        const r=await fetch('/api/catalog',{headers:{'Accept':'application/json'},cache:'no-store'});
-        const j=await r.json();
-        if(!r.ok)throw new Error(j.error||('Catalog HTTP '+r.status));
-        rows=j.beats||[];
-      }catch(e){primaryError=e}
-      if(rows===null){
-        if(!S.sb)throw primaryError||new Error('Supabase is not ready');
-        const {data,error}=await S.sb.from('beats')
-          .select('id,client_id,title,producer_name,genre,bpm,music_key,audio_url,cover_url,license_prices,exclusive_sold,active,owner_id,created_at')
-          .eq('active',true).eq('exclusive_sold',false)
-          .order('created_at',{ascending:false}).limit(200);
-        if(error)throw error;
-        rows=data||[];
-      }
-      BL161.real=rows.map(bl161NormalizeBeat);
-      bl161Merge();
-      BL161.loaded=true;
-      return BL161.real;
-    }catch(e){
-      console.error('v16.1.2 catalog load failed',e);
-      const app=document.querySelector('#app');
-      if(app && location.hash==='#market'){
-        const old=document.querySelector('#bl161CatalogError');
-        if(!old){
-          const box=document.createElement('div'); box.id='bl161CatalogError';
-          box.style.cssText='margin:12px 4vw;padding:10px;border:1px solid currentColor;font-family:monospace';
-          box.textContent='CATALOG SYNC ERROR: '+(e?.message||e);
-          app.prepend(box);
-        }
-      }
-      return [];
-    }finally{BL161.loading=null}
-  })();
-  return BL161.loading;
-}
-setTimeout(()=>bl161LoadMarketplace().then(()=>{if(['#market','#discover','#home',''].includes(location.hash))route()}),350);
-const bl161Route=route;route=function(){const hash=location.hash||'#home';if((hash==='#market'||hash==='#discover'||hash==='#home')&&!BL161.loaded&&!BL161.loading)bl161LoadMarketplace().then(()=>bl161Route());return bl161Route();};
-document.addEventListener('click',e=>{const el=e.target?.closest?.('button');if(!el)return;const t=(el.textContent||'').trim().toUpperCase();if(t.includes('PUBLISH')||t.includes('UPLOAD'))setTimeout(()=>{BL161.loaded=false;bl161LoadMarketplace(true)},1800)},true);
-</script>
+<!-- BEATLAB v16.0.3 MARKET SEARCH FIX -->
 </body>
 </html>
