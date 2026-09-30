@@ -2412,6 +2412,106 @@ window.blInitAudienceGlobe=async function(){
 };
 </script>
 
-<!-- BEATLAB v16.0.4 PROJECT FILES FULL DEPLOY -->
+<style id="beatlab-final-atmosphere-css">
+#blAtmosphere{position:fixed;inset:0;z-index:-3;pointer-events:none;background:#070809;overflow:hidden}
+#blAtmosphere canvas{position:absolute;inset:0;width:100%;height:100%}
+#blAura{position:absolute;inset:-20%;filter:blur(70px);opacity:.42;transition:background 1.4s ease,opacity .5s ease;transform:translate3d(0,0,0)}
+#blAtmosphere:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,8,9,.18),rgba(7,8,9,.7) 72%,#070809),radial-gradient(circle at 50% 30%,transparent 0 18%,rgba(7,8,9,.3) 65%);pointer-events:none}
+body{background:#070809!important}.topbar{background:rgba(7,8,9,.72)!important;backdrop-filter:blur(24px) saturate(125%)}
+.page{position:relative}.panel,.beat-card,.track-card,.artist-card{backdrop-filter:blur(18px)}
+#blWorldDock{position:fixed;right:18px;top:78px;z-index:70;display:flex;gap:6px;padding:6px;border:1px solid rgba(255,255,255,.08);background:rgba(7,8,9,.58);backdrop-filter:blur(18px);border-radius:999px;box-shadow:0 14px 50px rgba(0,0,0,.3)}
+.bl-world{border:0;background:transparent;color:#8f9397;font:8px var(--font-m);letter-spacing:.12em;padding:8px 10px;border-radius:999px;cursor:pointer;transition:.25s}.bl-world:hover,.bl-world.on{color:#080909;background:var(--acid);box-shadow:0 0 24px rgba(214,255,63,.18)}
+#blDNA{position:fixed;right:26px;bottom:104px;width:92px;height:92px;z-index:65;pointer-events:none;opacity:.8;filter:drop-shadow(0 0 22px var(--blGlow,#d6ff3f))}
+#blDNA path{fill:none;stroke:var(--blGlow,#d6ff3f);stroke-width:1.4;vector-effect:non-scaling-stroke;transition:stroke 1s}
+.bl-radio-hero{min-height:430px;display:grid;grid-template-columns:1.1fr .9fr;gap:18px;align-items:stretch}
+.bl-radio-stage{position:relative;overflow:hidden;min-height:410px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.012));border:1px solid var(--line);border-radius:18px}
+.bl-radio-stage:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 60% 38%,var(--blGlow,#d6ff3f) 0,transparent 8%),radial-gradient(circle at 60% 38%,color-mix(in srgb,var(--blGlow,#d6ff3f) 28%,transparent) 0,transparent 42%);opacity:.45;filter:blur(12px)}
+.bl-dj{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:230px;height:260px}
+.bl-dj-head{position:absolute;left:83px;top:12px;width:64px;height:74px;border-radius:46% 46% 42% 42%;background:linear-gradient(145deg,#202328,#090a0b);border:1px solid rgba(255,255,255,.09);box-shadow:0 0 60px rgba(0,0,0,.7)}
+.bl-dj-head:after{content:"";position:absolute;left:-13px;right:-13px;top:24px;height:26px;border:6px solid #292d31;border-top-color:transparent;border-bottom-color:transparent;border-radius:18px}
+.bl-dj-body{position:absolute;left:45px;top:82px;width:140px;height:145px;border-radius:48% 48% 18px 18px;background:linear-gradient(160deg,#1c1f22,#090a0b);border:1px solid rgba(255,255,255,.07)}
+.bl-arm{position:absolute;width:82px;height:15px;top:128px;background:#17191c;border-radius:20px;transform-origin:8px 7px;transition:transform .55s cubic-bezier(.2,.8,.2,1)}.bl-arm.a{left:12px;transform:rotate(22deg)}.bl-arm.b{right:8px;transform:rotate(158deg);transform-origin:74px 7px}
+body.bl-playing .bl-arm.a{animation:blDeckA 2.8s ease-in-out infinite}body.bl-transition .bl-arm.b{transform:rotate(132deg)}
+@keyframes blDeckA{0%,100%{transform:rotate(22deg)}50%{transform:rotate(8deg)}}
+.bl-decks{position:absolute;left:22px;right:22px;bottom:36px;height:66px;border-radius:12px;background:#090a0b;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:space-around;box-shadow:0 16px 40px #000}
+.bl-disc{width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:repeating-radial-gradient(circle,#15181a 0 2px,#080909 3px 5px)}body.bl-playing .bl-disc{animation:spin 2s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.bl-radio-copy{padding:38px}.bl-radio-copy h1{font-size:clamp(48px,7vw,92px);line-height:.86;margin:10px 0 18px}.bl-radio-copy h1 em{color:var(--acid);font-style:normal}.bl-radio-now{display:flex;gap:12px;align-items:center;margin:24px 0;padding:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.bl-radio-now .art{width:58px;height:58px;border-radius:8px;background:linear-gradient(145deg,var(--blGlow,#d6ff3f),#151719)}
+.bl-radio-controls{display:flex;gap:8px;flex-wrap:wrap}.bl-tune{margin-top:18px}.bl-tune input{width:100%;accent-color:#d6ff3f}
+.bl-route-error{max-width:760px;margin:120px auto;padding:30px;border:1px solid var(--line);background:rgba(7,8,9,.86);border-radius:16px}
+@media(max-width:860px){#blWorldDock{top:auto;bottom:140px;left:10px;right:10px;overflow:auto;justify-content:flex-start}.bl-world{white-space:nowrap}.bl-radio-hero{grid-template-columns:1fr}.bl-radio-stage{min-height:330px}#blDNA{display:none}}
+@media(prefers-reduced-motion:reduce){#blAtmosphere canvas{display:none!important}.bl-disc,.bl-arm{animation:none!important}}
+</style>
+<div id="blAtmosphere" aria-hidden="true"><div id="blAura"></div><canvas id="blAtmosCanvas"></canvas></div>
+<div id="blWorldDock" aria-label="Atmosphere"><button class="bl-world on" data-world="dark">DARK R&B</button><button class="bl-world" data-world="drill">DRILL</button><button class="bl-world" data-world="afro">AFRO</button><button class="bl-world" data-world="house">HOUSE</button><button class="bl-world" data-world="night">LATE NIGHT</button></div>
+<svg id="blDNA" viewBox="0 0 100 100" aria-hidden="true"><path id="blDNAPath" d="M50 8 C70 9 89 28 87 50 C85 73 69 90 47 88 C25 87 10 71 12 49 C14 27 29 10 50 8Z"/></svg>
+<script id="beatlab-final-atmosphere-js">
+(()=>{
+ const worlds={dark:{a:'#7c3cff',b:'#2ce6ff',glow:'#b96cff',speed:.24},drill:{a:'#5d74ff',b:'#d6ff3f',glow:'#8da1ff',speed:.52},afro:{a:'#ff9b42',b:'#ff4f7b',glow:'#ffb04f',speed:.42},house:{a:'#27f0d2',b:'#7a55ff',glow:'#2fffdc',speed:.72},night:{a:'#2852a8',b:'#9c4dff',glow:'#587dff',speed:.18}};
+ let world='dark',pts=[],raf=0,energy=.35,mouse={x:.5,y:.5}; const c=document.getElementById('blAtmosCanvas'),x=c?.getContext('2d'),aura=document.getElementById('blAura');
+ function rgb(hex,alpha){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${(n>>8)&255},${n&255},${alpha})`}
+ function resize(){if(!c)return;const d=Math.min(devicePixelRatio||1,1.6);c.width=innerWidth*d;c.height=innerHeight*d;c.style.width=innerWidth+'px';c.style.height=innerHeight+'px';x.setTransform(d,0,0,d,0,0);pts=Array.from({length:innerWidth<700?34:68},(_,i)=>({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:.5+Math.random()*2.2,v:.2+Math.random(),p:Math.random()*6.28}))}
+ function setWorld(n){world=worlds[n]?n:'dark';const w=worlds[world];document.documentElement.style.setProperty('--blGlow',w.glow);aura.style.background=`radial-gradient(circle at 22% 25%,${rgb(w.a,.55)},transparent 30%),radial-gradient(circle at 78% 40%,${rgb(w.b,.38)},transparent 34%),radial-gradient(circle at 52% 88%,${rgb(w.a,.22)},transparent 34%)`;document.querySelectorAll('.bl-world').forEach(b=>b.classList.toggle('on',b.dataset.world===world));localStorage.setItem('bl_world',world)}
+ function draw(t){if(!x)return;const w=worlds[world],play=window.S?.playing?1:0,sp=w.speed*(play?1.7:1);x.clearRect(0,0,innerWidth,innerHeight);for(const p of pts){p.y-=p.v*sp;p.x+=Math.sin(t*.0003+p.p)*.16*(1+energy);if(p.y<-8){p.y=innerHeight+8;p.x=Math.random()*innerWidth}const dx=(mouse.x-.5)*18*(p.r/2),dy=(mouse.y-.5)*12*(p.r/2);x.beginPath();x.arc(p.x+dx,p.y+dy,p.r*(play?1.2:1),0,7);x.fillStyle=rgb(Math.random()>.55?w.a:w.b,.12+p.r*.05);x.fill()}raf=requestAnimationFrame(draw)}
+ function dna(t){const p=document.getElementById('blDNAPath');if(!p)return;let d='';for(let i=0;i<=24;i++){const q=i/24*Math.PI*2,r=39+Math.sin(q*3+t*.0015)*4+Math.sin(q*5-t*.001)*2+(window.S?.playing?Math.sin(t*.006+q*4)*2:0),px=50+Math.cos(q)*r,py=50+Math.sin(q)*r;d+=(i?' L':'M')+px.toFixed(1)+' '+py.toFixed(1)}p.setAttribute('d',d+' Z');requestAnimationFrame(dna)}
+ window.blSetWorld=setWorld;window.addEventListener('resize',resize);window.addEventListener('pointermove',e=>{mouse.x=e.clientX/innerWidth;mouse.y=e.clientY/innerHeight},{passive:true});document.addEventListener('click',e=>{const b=e.target.closest('.bl-world');if(b)setWorld(b.dataset.world)});resize();setWorld(localStorage.getItem('bl_world')||'dark');draw(0);dna(0);
+ const sync=()=>{document.body.classList.toggle('bl-playing',!!window.S?.playing)};setInterval(sync,250);
+})();
+</script>
+<script id="beatlab-final-radio-and-guard">
+(()=>{
+ if(!window.VIEWS)return;
+ VIEWS.radio=()=>`<div class="page"><section class="section"><div class="bl-radio-hero"><div class="bl-radio-copy"><div class="kicker">BEATLAB RADIO · LIVE ATMOSPHERE</div><h1>DON'T BREAK<br><em>THE VIBE.</em></h1><p class="sec-sub">Song Radio and Beat Radio move through your Sound DNA while the world reacts around the music.</p><div class="bl-radio-now"><div class="art"></div><div><div class="kicker">NOW IN SESSION</div><b id="blRadioTitle">${esc(AE.track?.title||'VOID')}</b><div class="mono">${esc(AE.track?.artist||'SAGE')} · ${esc(AE.track?.genre||'Dark R&B')}</div></div></div><div class="bl-radio-controls"><button class="btn btn-acid" onclick="blRadioPlay()">▶ PLAY RADIO</button><button class="btn btn-ghost" onclick="nextTrack();blRadioTransition()">NEXT</button><button class="btn btn-ghost" onclick="go('#market')">BEAT RADIO →</button></div><div class="bl-tune"><div class="mono">CHILL ← VIBE → ENERGY</div><input type="range" min="0" max="100" value="58" oninput="document.getElementById('blAura').style.opacity=.25+(this.value/160)"></div></div><div class="bl-radio-stage"><div class="bl-dj"><div class="bl-dj-head"></div><div class="bl-dj-body"></div><div class="bl-arm a"></div><div class="bl-arm b"></div><div class="bl-decks"><i class="bl-disc"></i><i class="bl-disc"></i></div></div></div></div></section><section class="section"><div class="sec-head"><div><div class="kicker">STATIONS</div><h2 class="sec-title">START FROM <em>A FEELING</em></h2></div></div><div class="beat-grid">${[['DARK R&B','dark'],['DRILL','drill'],['AFRO','afro'],['HOUSE','house']].map(v=>`<div class="panel" style="cursor:pointer" onclick="blSetWorld('${v[1]}');blRadioPlay()"><div class="kicker">SONG RADIO</div><h3 style="font-size:28px;margin:10px 0">${v[0]}</h3><span class="sec-link">START RADIO →</span></div>`).join('')}</div></section>${footerHTML()}</div>`;
+ window.blRadioPlay=()=>{if(!AE.track){const t=DEMO_TRACKS[1]||DEMO_TRACKS[0];aePlay(t)}else if(!S.playing)togglePlay();document.body.classList.add('bl-playing');toast('<b>Radio started</b> · atmosphere linked to playback')};
+ window.blRadioTransition=()=>{document.body.classList.add('bl-transition');setTimeout(()=>document.body.classList.remove('bl-transition'),800)};
+ const nav=document.querySelector('.nav-links');if(nav&&!nav.querySelector('[data-nav="radio"]')){const a=document.createElement('a');a.href='#radio';a.dataset.nav='radio';a.textContent='RADIO';nav.insertBefore(a,nav.querySelector('[data-nav="live"]'))}
+ const oldRoute=window.route||route;window.route=function(){try{return oldRoute()}catch(err){console.error('BEATLAB route recovery',err);const appEl=document.getElementById('app');if(appEl)appEl.innerHTML=`<div class="bl-route-error"><div class="kicker">BEATLAB RECOVERY</div><h2>THIS VIEW HIT AN ERROR.</h2><p class="sec-sub">The shell is still alive. Return Home or Market without reloading the app.</p><button class="btn btn-acid" onclick="location.hash='#home'">HOME</button> <button class="btn btn-ghost" onclick="location.hash='#market'">MARKET</button></div>`}};
+ window.removeEventListener('hashchange',oldRoute);window.addEventListener('hashchange',window.route);
+})();
+</script>
+
+<style id="beatlab-genre-worlds-css">
+/* Reactive Genre Marketplace — Kimi visual DNA */
+#blWorldDock{display:none!important}
+.bl-genre-worlds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 20px}
+.bl-genre-card{position:relative;height:154px;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:#090b0c;cursor:pointer;isolation:isolate;transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.bl-genre-card video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.48;filter:saturate(.8) contrast(1.05) brightness(.62);transform:scale(1.03);transition:opacity .35s,filter .35s,transform 1.2s cubic-bezier(.2,.7,.2,1)}
+.bl-genre-card:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 22%,rgba(5,6,7,.15) 45%,rgba(5,6,7,.92) 100%);z-index:1}
+.bl-genre-card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--acid) 55%,#fff 8%);box-shadow:0 14px 42px color-mix(in srgb,var(--acid) 12%,transparent)}
+.bl-genre-card:hover video,.bl-genre-card.active video{opacity:.82;filter:saturate(1.1) contrast(1.08) brightness(.78);transform:scale(1.09)}
+.bl-genre-card.active{border-color:var(--acid);box-shadow:0 0 0 1px color-mix(in srgb,var(--acid) 40%,transparent),0 16px 48px color-mix(in srgb,var(--acid) 15%,transparent)}
+.bl-genre-info{position:absolute;z-index:2;left:15px;right:15px;bottom:13px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px}.bl-genre-info b{font-family:var(--font-d);font-size:24px;letter-spacing:.02em}.bl-genre-info span{font:700 8px var(--font-m);letter-spacing:.15em;color:var(--acid)}
+.bl-genre-all{background:radial-gradient(circle at 70% 30%,color-mix(in srgb,var(--acid) 20%,transparent),transparent 38%),#090b0c}.bl-genre-all:before{content:"";position:absolute;inset:-30%;background:repeating-radial-gradient(circle at 50% 50%,transparent 0 12px,color-mix(in srgb,var(--acid) 14%,transparent) 13px 14px);animation:blAllWorld 12s linear infinite}@keyframes blAllWorld{to{transform:rotate(360deg)}}
+body.bl-market-world:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:linear-gradient(180deg,color-mix(in srgb,var(--acid) 6%,transparent),transparent 44%)}
+@media(max-width:1000px){.bl-genre-worlds{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.bl-genre-worlds{display:flex;overflow:auto;padding-bottom:5px}.bl-genre-card{min-width:220px;height:128px}}
+</style>
+<script id="beatlab-genre-worlds-js">
+(()=>{
+ const GENRES={
+  ALL:{accent:'#d6ff3f',world:'dark'},
+  'Drill':{accent:'#9fc5ff',world:'drill',video:'drill'},
+  'Afro':{accent:'#ffad45',world:'afro',video:'afro'},
+  'Amapiano':{accent:'#ffcf55',world:'afro',video:'amapiano'},
+  'House':{accent:'#ff4fd8',world:'house',video:'house'},
+  'Electronic':{accent:'#36e7ff',world:'house',video:'electronic'},
+  'Trap':{accent:'#ff4b55',world:'drill',video:'trap'},
+  'Lo-Fi':{accent:'#8fa7ff',world:'night',video:'lofi'},
+  'Chill':{accent:'#8fa7ff',world:'night',video:'lofi'},
+  'Pop':{accent:'#ff7cc8',world:'afro',video:'pop'},
+  'Hip-Hop':{accent:'#ff7a45',world:'drill',video:'trap'},
+  'Alt R&B':{accent:'#b96cff',world:'dark',video:'electronic'}
+ };
+ const cards=[['ALL','ALL'],['Drill','DRILL'],['Afro','AFRO'],['Amapiano','AMAPIANO'],['House','HOUSE'],['Electronic','ELECTRONIC'],['Trap','TRAP'],['Lo-Fi','LO-FI'],['Pop','POP']];
+ function card(g,label){const s=GENRES[g];if(g==='ALL')return `<button class="bl-genre-card bl-genre-all active" data-genre="ALL" onclick="blChooseGenre(this,'ALL')"><div class="bl-genre-info"><b>ALL WORLDS</b><span>EXPLORE</span></div></button>`;return `<button class="bl-genre-card" data-genre="${g}" onclick="blChooseGenre(this,'${g}')" onmouseenter="this.querySelector('video')?.play()" onmouseleave="this.classList.contains('active')||this.querySelector('video')?.pause()"><video muted loop playsinline preload="metadata" src="assets/genre-worlds/${s.video}.mp4"></video><div class="bl-genre-info"><b>${label}</b><span>ENTER WORLD →</span></div></button>`}
+ function worldHTML(){return `<div class="kicker" style="margin:2px 0 10px">CHOOSE A SOUND · ENTER ITS WORLD</div><div class="bl-genre-worlds">${cards.map(x=>card(...x)).join('')}</div>`}
+ window.blApplyGenreWorld=function(g){const s=GENRES[g]||GENRES.ALL;document.documentElement.style.setProperty('--acid',s.accent);document.documentElement.style.setProperty('--blGlow',s.accent);document.body.classList.toggle('bl-market-world',g!=='ALL');if(window.blSetWorld)window.blSetWorld(s.world);localStorage.setItem('bl_market_genre',g)};
+ window.blChooseGenre=function(btn,g){window.BL_MARKET=window.BL_MARKET||{};BL_MARKET.filter=g==='Lo-Fi'?'Chill':g;document.querySelectorAll('.bl-genre-card').forEach(c=>{const on=c===btn;c.classList.toggle('active',on);const v=c.querySelector('video');if(v){if(on)v.play().catch(()=>{});else v.pause()}});document.querySelectorAll('.chip-btn').forEach(b=>b.classList.remove('active'));blApplyGenreWorld(g);renderMarketBeats();document.getElementById('beatGrid')?.scrollIntoView({behavior:'smooth',block:'start'})};
+ const oldMarket=VIEWS.market;VIEWS.market=()=>{let html=oldMarket();const marker='<div style="display:flex;gap:10px;align-items:center;margin:0 0 14px">';html=html.replace(marker,worldHTML()+marker);setTimeout(()=>{const g=localStorage.getItem('bl_market_genre')||'ALL';const c=document.querySelector(`.bl-genre-card[data-genre="${CSS.escape(g)}"]`);if(c&&g!=='ALL'){c.classList.add('active');document.querySelector('.bl-genre-card[data-genre="ALL"]')?.classList.remove('active');c.querySelector('video')?.play().catch(()=>{});window.BL_MARKET.filter=g==='Lo-Fi'?'Chill':g;renderMarketBeats();blApplyGenreWorld(g)}else blApplyGenreWorld('ALL')},0);return html};
+ const oldFilter=window.filterBeats;window.filterBeats=function(btn,f){oldFilter(btn,f);if(f==='ALL')blApplyGenreWorld('ALL');else if(GENRES[f])blApplyGenreWorld(f)};
+ const oldRoute=window.route;window.route=function(){const r=oldRoute();if(!location.hash.startsWith('#market')){document.body.classList.remove('bl-market-world');document.documentElement.style.setProperty('--acid','#d6ff3f')}return r};
+})();
+</script>
+
+<!-- BEATLAB FINAL KIMI ATMOSPHERE BUILD -->
 </body>
 </html>
